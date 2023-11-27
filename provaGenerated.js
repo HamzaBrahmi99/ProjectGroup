@@ -3,31 +3,51 @@ const os = require("os");
 
 class funcGenerator {
   constructor() {
-    this.allowed_types = ["i32", "i64", "f32", "f64"];
+    this.allowed_types = ["i32"];
     this.module = [];
-    this.maxNumOfFunctions = 5;
-    this.maxNumOfFunctionTypes = 5;
+    this.maxNumOfFunctions = 150;
     this.maxNumOfParams = 4;
-    this.maxNumOfResults = 0;
+    this.maxNumOfResults = 2;
+    this.maxNumOfFunctionTypes = this.allowed_types.length*(this.maxNumOfParams+this.maxNumOfResults);
     this.probabilityOfControlFlow = 0.5;
     this.probabilityOfIf = 0.6;
     this.probabilityOfCallIndirect = 0.5;
+    this.probabilityOfOperation = 0.5;
     this.stack = [];
     this.functions = [];
     this.functionTypes = [];
-    this.funcTypesIndex = [];
+    this.funcTypesIndex = {};
   }
   reset() {
     this.module = [];
     this.stack = [];
     this.functions = [];
     this.functionTypes = [];
-    this.funcTypesIndex = [];
+    this.funcTypesIndex = {};
   }
+  /**
+   *
+   * i32 i32 i32 i32
+   * i32 i32 i32
+   * i32 i32
+   * i32
+   * 
+   * 2^maxNumOfParams+maxNumOfResults+allowed_types.length
+   *
+   * maxNumOfTypes = this.maxNumOfParams*(allowed_types.length+maxNumOfResults)
+    
+   * i32 i32 i32 i32 res i32
+   * i32 i32 i32 res i32
+   * i32 i32 res i32
+   * i32 res i32
+   *
+
+   */
   //Done
   generateModule(wat_name) {
     this.reset();
     this.module.push("(module");
+
     while (this.functionTypes.length < this.maxNumOfFunctionTypes) {
       let type = this.generateFunctionType();
       if (!this.functionTypes.some((e) => e === type[0])) {
@@ -44,14 +64,25 @@ class funcGenerator {
     }
     this.module.push(`(table ${this.maxNumOfFunctions} funcref)`);
     this.module.push(this.generateFunctionTable());
-    this.module.push('(export "main" (func 0))');
+    //export a random function from the module
+    this.module.push(
+      `(export "start" (func ${this.getRandomInt(
+        0,
+        this.maxNumOfFunctions - 1
+      )}))`
+    );
 
     for (let i = 0; i < this.maxNumOfFunctions; i++) {
       this.generateFunctionBody(i);
     }
-      this.module.push(")");
-      const result = this.module.join(os.EOL);
-      fs.writeFileSync(`${wat_name}.wat`, result);
+    this.module.push(")");
+    const result = this.module.join(os.EOL);
+    fs.writeFileSync(`${wat_name}.wat`, result);
+  }
+  getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1) + min);
   }
   //Done
   generateFunctionType() {
@@ -68,13 +99,14 @@ class funcGenerator {
         ]
       );
     }
-    for (let i = 0; i < n_results; i++) {
-      results.push(
-        this.allowed_types[
-          Math.floor(Math.random() * this.allowed_types.length)
-        ]
-      );
-    }
+    if (this.maxNumOfResults !== 0)
+      for (let i = 0; i < n_results; i++) {
+        results.push(
+          this.allowed_types[
+            Math.floor(Math.random() * this.allowed_types.length)
+          ]
+        );
+      }
     return [
       `(type (func (param ${params.join(" ")})${
         results.length ? " (result " + results.join(" ") + ")" : ""
@@ -92,6 +124,7 @@ class funcGenerator {
     elem += ")";
     return elem;
   }
+
   generateFunctionBody(function_id) {
     const function_type = this.funcTypesIndex[function_id];
     this.module.push(
@@ -107,66 +140,20 @@ class funcGenerator {
   generateInstruction(funcType) {
     let probability = Math.random();
     if (probability < this.probabilityOfControlFlow) {
-      this.generateControlFlowInstruction(funcType);//if, loop, ecc
+      this.generateControlFlowInstruction(funcType); //if, loop, ecc
     } else {
-      this.generateLinearInstruction(funcType);//arithmetic, bitwise, ecc
+      //To do:add arithmetic, bitwise, ecc
+      
+      this.generateCallInstruction(funcType); //call, call_indirect
     }
   }
-  generateLinearInstruction(funcType) {
-    //faccio in caso le operazioni prima di chiamare la funzione
-    /*
-        * 1. Prendo le variabili dallo stack
-        * 2. Controllo le operazioni possibili con quei tipi
-        * 3. Genero il DataSet per quella variabile
-        * params[i32,i64,i64] 
-        * local.get 0
-        * local.get 1 
-        * local.get 2
-        * i64.add
-        * call i params[i32,i64]
-        * 
-        * params[i32,i64] 
-        * local.get 0
-        * local.get 1 
-        * const
-        * call i params[i32,i64,i32]
-        * 
-        * L'ultima volta che ci siamo visti ci hai detto di creare una classe che gestisca lo stack e che crei un oggetto che contenga l'insieme delle operazioni possibili sullo stack attuale, con alla fine il tipo di funzione,
-        * Ascoltando alcuni audio che ci siamo salvati, in uno dei nostri primi incontri ci hai detto di utilizzare, però, solo i32 per semplicità e perché per l'applicazione che ha il progetto non ce n'è bisogno.
-        * A questo punto, il che utilità avrebbe il dataset? avrebbe solo e unicamente tutte le operazioni applicabili a un i32.
-        * 
-        * params[i32,i64,i64] [i32,i64,i64]
-        * local.get 0
-        * local.get 1 
-        * local.get 2
-        * -------
-        * converto in i32
-        * i32.const 
-        * i64.add
-        * call i params[i32,i64,i32]
-        * 
-        * 
-        * params[i32,i64,i64] 
-        * local.get 0
-        * 
-        * local.get 1 
-        * local.get 2
-        * converto in i32
-        * i32.const 
-        * i64.add
-        * call i params[i64,i64,i32,i32]
-        * 
-        * 
-        * 
-        * params[f32,f64]
-        * --> verranno convertiti in i32
-        * local.get n -> verrà convertito 
-        * call i params[i32]
-        * Dataset = [div, mul, add, sub, and, type 4 params (i32,i64,f64,f32) result (i32)]
-    */
+  generateCallInstruction(funcType) {
+    //Do the call, call or call_indirect based on the probability of probabilityOfCallIndirect
+  
     this.generateCallee(funcType);
   }
   generateControlFlowInstruction(funcType) {
+
     let instruction;
     let probability = Math.random();
 
@@ -177,15 +164,15 @@ class funcGenerator {
     }
 
     if (instruction) {
-      instruction.generateInstruction(funcType);
+      instruction.executeInstruction(funcType);
     } else {
-      this.generateLinearInstruction(funcType);
+      this.generateCallInstruction(funcType);
     }
   }
 
   generateCallee(func) {
     let func_caller = func;
-    let calleeIndex = Math.floor(Math.random() * this.functionTypes.length);
+    let calleeIndex = this.getRandomInt(0, this.maxNumOfFunctions - 1);
     let calleeTypeIndex = this.funcTypesIndex[calleeIndex];
     let calleeType = this.functions[calleeTypeIndex];
 
@@ -193,13 +180,15 @@ class funcGenerator {
 
     let stackBefore = this.stack.length;
     //local
-    //this.addLocalElementsToStack(func_caller[1],calleeType[1]);
+    console.log("Func_caller: ", func_caller);
+    console.log("Callee: ", calleeType)
+    this.addLocalElementsToStack(func_caller[1],calleeType[1]);
     //const
-    this.addConstElementsToStack(calleeType[1]);
+    //this.addConstElementsToStack(calleeType[1]);
 
     if (probability < this.probabilityOfCallIndirect) {
-      this.stack.push(`i32.const ${calleeTypeIndex}`);
-      this.module.push(`i32.const ${calleeTypeIndex}`);
+      //this.stack.push(`i32.const ${calleeTypeIndex}`);
+      this.module.push(`i32.const ${calleeIndex}`);
       this.module.push(`call_indirect (type ${calleeTypeIndex})`);
       this.stack.pop();
     } else {
@@ -208,40 +197,64 @@ class funcGenerator {
 
     this.dropElementsFromStack(calleeType, func_caller);
   }
-    //params[i32,i64,i64] calleeParams[i32,i64,i64]
-    /*
-    []
-    []
-    [params(i32, i64) result i32]
+
+
+  //[i32, i32, i32] chiamo-> [i32,i32]
+  addLocalElementsToStack(func_caller, calleeParams) {
     
-
-    
-    call 4
-    local.get 0 
-
-    */
-  addLocalElementsToStack(params, calleeParams) {
-    for (let i = 0; i < params.length; i++) {
-        let type = params[i];
-        this.stack.push(`local.get ${i}`);
-        this.module.push(`local.get ${i}`);
-        if (params.length === calleeParams.length && params[i] !== calleeParams[i]) {
-            this.module.push(`${calleeParams[i]}.convert_${params[i]}_s`)    
-        }
-
-        if (params.length > calleeParams.length && i === calleeParams.length) {
-            if (params[i] === params[i - 1]) {
-                this.module.push(this.generateLinearInstruction(params[i]));
-            }
-            this.module.push("drop") // operazione?
-        }
+    for (let i = 0; i < func_caller.length; i++) {
+      let type = func_caller[i];
+      this.stack.push(`local.get ${i}`);
+      this.module.push(`local.get ${i}`);
     }
+    console.log("func_caller: ", func_caller.length);
+    console.log("caleeParams: ",calleeParams.length)
+    if(calleeParams.length > func_caller.length){
+    for (let i = 0; i < calleeParams.length-func_caller.length; i++) {
+      // aggiungi operatore tra add-div-etc... random
+
+      this.stack.push(`i32.const 0`);
+      this.module.push(`i32.const 0`);
+            
+      }
+    } else if(calleeParams.length !== func_caller.length){
+        for (let i = 0; i < func_caller.length-calleeParams.length; i++) {
+          if (Math.random() < this.probabilityOfOperation) {
+            //ToDo: cambiare le operazioni con gli oggetti operazione random
+            //in base al numero di parametri
+            let num1 = this.stack.pop();
+            let num2 = this.stack.pop();
+            this.stack.push(num1 + " + " + num2);
+            this.module.push("i32.add")
+          } else {
+            this.stack.pop();
+            this.module.push("drop");
+          }
+        }
+      }
+
+/*
+    for (let i = 0; i < params.length; i++) {
+    if (locals > calleeParams.length) {
+        if (Math.random() < this.probabilityOfOperationn) {
+         // aggiungi operatore tra add-div-etc... random
+         if(locals === 2) this.module.push(`${params[i]}.add`);
+        } else {
+            this.stack.pop();
+            this.module.push("drop");
+        }
+       // this.module.push(`${params[i]}.const 0`);
+      } else {
+        this.stack.push(`${params[i]}.const 0`);
+        this.module.push(`${params[i]}.const 0`);
+          }
+    }
+    */
   }
   addConstElementsToStack(params) {
     for (let i = 0; i < params.length; i++) {
       let type = params[i];
-      console.log(i);
-      this.stack.push(`${type}.const} 0`);
+      this.stack.push(`${type}.const 0`);
       this.module.push(`${type}.const 0`);
     }
   }
@@ -251,7 +264,7 @@ class funcGenerator {
     //first check if the types are the same and the same number of elements
     //if [i32,i32,i64] but [i32,i64] i need to drop the first element of the stack and two add i32.const 0
     //so i have the same number and types of elements
-
+    
     if (calleeType[2].length > func_caller[2].length) {
       for (let i = 0; i < calleeType[2].length - func_caller[2].length; i++) {
         this.stack.pop();
@@ -287,8 +300,8 @@ class Instruction {
   constructor(type) {
     this.type = type;
   }
-  generateInstruction() {
-    throw new Error("Method 'generateInstruction()' must be implemented.");
+  executeInstruction() {
+    throw new Error("Method 'executeInstruction()' must be implemented.");
   }
 }
 
@@ -297,8 +310,8 @@ class LinearInstruction extends Instruction {
     super(type);
     this.operation = operation;
   }
-  generateInstruction() {
-    throw new Error("Method 'generateInstruction()' must be implemented.");
+  executeInstruction() {
+    throw new Error("Method 'executeInstruction()' must be implemented.");
   }
 }
 
@@ -309,7 +322,7 @@ class ArithmeticInstruction extends LinearInstruction {
     this.type = type;
   }
 
-  generateInstruction() {
+  executeInstruction() {
     switch (this.operation) {
       case "add":
         this.module.push(`${this.type}.add`);
@@ -334,7 +347,7 @@ class BitwiseInstruction extends LinearInstruction {
     this.type = type;
   }
 
-  generateInstruction() {
+  executeInstruction() {
     switch (this.operation) {
       case "and":
         this.module.push(`${this.type}.and`);
@@ -361,10 +374,15 @@ class ControlFlowInstruction extends Instruction {
     this.functionTypes = functionTypes;
   }
 
-  generateInstruction(funcType) {
+  executeInstruction(funcType) {
     
-    throw new Error("Method 'generateInstruction()' must be implemented.");
+    throw new Error("Method 'executeInstruction()' must be implemented.");
   }
+}
+
+class CallInstruction extends ControlFlowInstruction {
+}
+class CallIndirectInstruction extends ControlFlowInstruction {
 }
 
 class IfInstruction extends ControlFlowInstruction {
@@ -373,17 +391,20 @@ class IfInstruction extends ControlFlowInstruction {
     this.funcGenerator = funcGenerator;
   }
 
-  generateInstruction(funcType) {
+  executeInstruction(funcType) {
+
     let randomNum = Math.floor(Math.random() * 2);
-    this.stack.push(`i32.const ${randomNum}`);
+    //this.stack.push(`i32.const ${randomNum}`);
     this.module.push(`i32.const ${randomNum}`);
     this.module.push(`(if (result ${funcType[2].join(" ")})`);
-    this.stack.pop(); //pop the value of the if
+    //this.stack.pop(); //pop the value of the if
     this.module.push("(then");
-    this.funcGenerator.generateLinearInstruction(funcType);
+    this.funcGenerator.generateCallee(funcType);
+    //this.funcGenerator.generateCallInstruction(funcType);
     this.module.push(")");
     this.module.push("(else");
-    this.funcGenerator.generateLinearInstruction(funcType);
+    this.funcGenerator.generateCallee(funcType);
+    //this.funcGenerator.generateCallInstruction(funcType);
     this.module.push(")");
     this.module.push(")");
   }
@@ -391,3 +412,17 @@ class IfInstruction extends ControlFlowInstruction {
 
 let instance = new funcGenerator();
 instance.generateModule("prova");
+
+/*
+  (func $2 (type 2) (param i64 f64 f64) (result f32)
+  local.get 0
+  f32.convert_i64
+  local.get 1
+  local.get 2
+  i32.convert_f64
+  f64.convert_i32
+  f64.add
+    call_indirect (type 1) -> (f32,f64,i32) (result i32)
+    f32.convert_i32_s
+  )
+*/
