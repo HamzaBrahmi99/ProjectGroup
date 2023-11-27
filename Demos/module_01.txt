@@ -1,0 +1,79 @@
+(module
+  (type (func (param i32 f32) (result i64)))
+  (type (func (param i64 i64) (result f64)))
+  (type (func (param i64 f32) (result f64)))
+  (type (func (param i32 i64) (result f64)))
+  (type (func (param i32 f32 i64 i64) (result f64)))
+  (table 5 funcref)
+  (elem (i32.const 0) 0 1 2 3 4)
+  (export "main" (func 0))
+
+  (func $0 (type 2) (param i64 f32) (result f64)
+    i64.const 0
+    f32.const 0
+    i32.const 2
+    call_indirect (type 2)
+  )
+
+  (func $1 (type 4) (param i32 f32 i64 i64) (result f64)
+    i32.const 1
+    (if (result f64)
+      (then
+        i64.const 0
+        f32.const 0
+        call 0
+      )
+      (else
+        i64.const 0
+        f32.const 0
+        call 4
+      )
+    )
+  )
+
+  (func $2 (type 4) (param i32 f32 i64 i64) (result f64)
+    i32.const 0
+    i64.const 0
+    i32.const 3
+    call_indirect (type 3)
+  )
+
+  (func $3 (type 3) (param i32 i64) (result f64)
+    i32.const 0
+    (if (result f64)
+      (then
+        i32.const 0
+        f32.const 0
+        i64.const 0
+        i64.const 0
+        i32.const 4
+        call_indirect (type 4)
+      )
+      (else
+        i32.const 0
+        f32.const 0
+        i64.const 0
+        i64.const 0
+        call 1
+      )
+    )
+  )
+
+  (func $4 (type 2) (param i64 f32) (result f64)
+    i32.const 1
+    (if (result f64)
+      (then
+        i32.const 0
+        f32.const 0
+        i64.const 0
+        i64.const 0
+        call 2
+      )
+      (else
+        i64.const 0
+        f32.const 0
+        call 0
+      )
+    )
+  )
+)
