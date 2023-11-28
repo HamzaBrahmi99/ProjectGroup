@@ -1,5 +1,16 @@
+/**
+ * Represents a graph manager that handles the Call Graph
+ */
 class GraphManager {
   constructor() {
+    this.edges = new Set();
+    this.nodes = new Map();
+  }
+  
+  /**
+   * Resets the GraphManager's data
+   */
+  reset() {
     this.edges = new Set();
     this.nodes = new Map();
   }
