@@ -1,14 +1,26 @@
 const fs = require("fs");
 const os = require("os");
+const GraphManager = require("./GraphManager");
 
+//TODO: dividere in più file
+//TODO: spostare call nelle classi, se tocca farlo
+//TODO: aggiungere commenti sui metodi più importanti
+//TODO: cambiare nome alle variabili
+//TODO: Creare i file .wat numerati, all'interno di una cartella a parte (tipo la Demos)
+//TODO: capire i dataset e altre domande per il prof.
 class funcGenerator {
   constructor() {
+    this.compiler_cg = new Set();
+    this.graphManager = new GraphManager();
     this.allowed_types = ["i32"];
     this.module = [];
+    //
     this.maxNumOfFunctions = 150;
     this.maxNumOfParams = 4;
     this.maxNumOfResults = 2;
-    this.maxNumOfFunctionTypes = this.allowed_types.length*(this.maxNumOfParams+this.maxNumOfResults);
+    this.maxNumOfFunctionTypes =
+    this.allowed_types.length * (this.maxNumOfParams + this.maxNumOfResults);
+    
     this.probabilityOfControlFlow = 0.5;
     this.probabilityOfIf = 0.6;
     this.probabilityOfCallIndirect = 0.5;
@@ -19,6 +31,7 @@ class funcGenerator {
     this.funcTypesIndex = {};
   }
   reset() {
+    this.compiler_cg = new Set();
     this.module = [];
     this.stack = [];
     this.functions = [];
@@ -44,6 +57,16 @@ class funcGenerator {
 
    */
   //Done
+
+  generateDotData() {
+    this.compiler_cg.forEach((pair) => {
+      const [sourceNode, targetNode] = pair;
+      this.graphManager.addEdge(sourceNode, targetNode);
+    });
+    let dotGraph = this.graphManager.generateDotData("dotfile");
+    fs.writeFileSync("callgraph.dot", dotGraph);
+  }
+
   generateModule(wat_name) {
     this.reset();
     this.module.push("(module");
@@ -65,19 +88,29 @@ class funcGenerator {
     this.module.push(`(table ${this.maxNumOfFunctions} funcref)`);
     this.module.push(this.generateFunctionTable());
     //export a random function from the module
-    this.module.push(
-      `(export "start" (func ${this.getRandomInt(
-        0,
-        this.maxNumOfFunctions - 1
-      )}))`
-    );
+    let export_id = this.getRandomInt(0, this.maxNumOfFunctions - 1);
+    this.module.push(`(export "start" (func ${export_id}))`);
 
     for (let i = 0; i < this.maxNumOfFunctions; i++) {
+      if (i === export_id) {
+        this.graphManager.addNode(
+          `node${i}`,
+          `[label="node${i}" style = "filled" color="gray"] `
+        );
+      } else {
+        this.graphManager.addNode(
+          `node${i}`,
+          `[label="node${i}"]; `
+        );
+      }
+
       this.generateFunctionBody(i);
     }
+
     this.module.push(")");
     const result = this.module.join(os.EOL);
     fs.writeFileSync(`${wat_name}.wat`, result);
+    this.generateDotData();
   }
   getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -126,34 +159,37 @@ class funcGenerator {
   }
 
   generateFunctionBody(function_id) {
+    //let functions_index = [id,type],[id,type],[id,type];
     const function_type = this.funcTypesIndex[function_id];
+
     this.module.push(
       `(func $${function_id} (type ${function_type}) (param ${this.functions[
         function_type
       ][1].join(" ")}) (result ${this.functions[function_type][2].join(" ")})`
     );
+
     let funcType = this.functionTypes[this.funcTypesIndex[function_id]];
     let func = this.functions[function_type];
-    this.generateInstruction(func);
+
+    this.generateInstruction(func, function_id);
     this.module.push(")");
   }
-  generateInstruction(funcType) {
+
+  generateInstruction(funcType, function_id) {
     let probability = Math.random();
     if (probability < this.probabilityOfControlFlow) {
-      this.generateControlFlowInstruction(funcType); //if, loop, ecc
+      this.generateControlFlowInstruction(funcType, function_id); //if, loop, ecc
     } else {
       //To do:add arithmetic, bitwise, ecc
-      
-      this.generateCallInstruction(funcType); //call, call_indirect
+
+      this.generateCallInstruction(funcType, function_id); //call, call_indirect
     }
   }
-  generateCallInstruction(funcType) {
+  generateCallInstruction(funcType, function_id) {
     //Do the call, call or call_indirect based on the probability of probabilityOfCallIndirect
-  
-    this.generateCallee(funcType);
+    this.generateCallee(funcType, function_id);
   }
-  generateControlFlowInstruction(funcType) {
-
+  generateControlFlowInstruction(funcType, function_id) {
     let instruction;
     let probability = Math.random();
 
@@ -164,25 +200,26 @@ class funcGenerator {
     }
 
     if (instruction) {
-      instruction.executeInstruction(funcType);
+      instruction.executeInstruction(funcType, function_id);
     } else {
-      this.generateCallInstruction(funcType);
+      this.generateCallInstruction(funcType, function_id);
     }
   }
 
-  generateCallee(func) {
+  generateCallee(func, function_id) {
     let func_caller = func;
     let calleeIndex = this.getRandomInt(0, this.maxNumOfFunctions - 1);
     let calleeTypeIndex = this.funcTypesIndex[calleeIndex];
     let calleeType = this.functions[calleeTypeIndex];
-
+    this.compiler_cg.add([`node${function_id}`, `node${calleeIndex}`]);
     let probability = Math.random();
+    console.log(func);
 
     let stackBefore = this.stack.length;
     //local
-    console.log("Func_caller: ", func_caller);
-    console.log("Callee: ", calleeType)
-    this.addLocalElementsToStack(func_caller[1],calleeType[1]);
+    //console.log("Func_caller: ", func_caller);
+    //console.log("Callee: ", calleeType)
+    this.addLocalElementsToStack(func_caller[1], calleeType[1]);
     //const
     //this.addConstElementsToStack(calleeType[1]);
 
@@ -198,42 +235,51 @@ class funcGenerator {
     this.dropElementsFromStack(calleeType, func_caller);
   }
 
-
   //[i32, i32, i32] chiamo-> [i32,i32]
   addLocalElementsToStack(func_caller, calleeParams) {
-    
     for (let i = 0; i < func_caller.length; i++) {
       let type = func_caller[i];
       this.stack.push(`local.get ${i}`);
       this.module.push(`local.get ${i}`);
     }
-    console.log("func_caller: ", func_caller.length);
-    console.log("caleeParams: ",calleeParams.length)
-    if(calleeParams.length > func_caller.length){
-    for (let i = 0; i < calleeParams.length-func_caller.length; i++) {
-      // aggiungi operatore tra add-div-etc... random
+    //console.log("func_caller: ", func_caller.length);
+    //console.log("caleeParams: ",calleeParams.length)
+    if (calleeParams.length > func_caller.length) {
+      for (let i = 0; i < calleeParams.length - func_caller.length; i++) {
+        // aggiungi operatore tra add-div-etc... random
 
-      this.stack.push(`i32.const 0`);
-      this.module.push(`i32.const 0`);
-            
+        this.stack.push(`i32.const ${this.getRandomInt(1, 100)}`);
+        this.module.push(`i32.const ${this.getRandomInt(1, 100)}`);
       }
-    } else if(calleeParams.length !== func_caller.length){
-        for (let i = 0; i < func_caller.length-calleeParams.length; i++) {
-          if (Math.random() < this.probabilityOfOperation) {
-            //ToDo: cambiare le operazioni con gli oggetti operazione random
-            //in base al numero di parametri
-            let num1 = this.stack.pop();
-            let num2 = this.stack.pop();
-            this.stack.push(num1 + " + " + num2);
-            this.module.push("i32.add")
+    } else if (calleeParams.length !== func_caller.length) {
+      for (let i = 0; i < func_caller.length - calleeParams.length; i++) {
+        if (Math.random() < this.probabilityOfOperation) {
+          //ToDo: cambiare le operazioni con gli oggetti operazione random
+          //in base al numero di parametri
+          let operation;
+          if (func_caller.length >= 2) {
+            //todo:add bitwise operations random
+            console.log("Func Caller: ", func_caller[i]);
+            operation = new ArithmeticInstruction(
+              this.module,
+              this.stack,
+              func_caller[i]
+            );
+          } else if (func_caller.length === 1) {
+            //add operations with one parameter
           } else {
-            this.stack.pop();
-            this.module.push("drop");
+            //add operations with no parameters
           }
+
+          operation.executeInstruction();
+        } else {
+          this.stack.pop();
+          this.module.push("drop");
         }
       }
+    }
 
-/*
+    /*
     for (let i = 0; i < params.length; i++) {
     if (locals > calleeParams.length) {
         if (Math.random() < this.probabilityOfOperationn) {
@@ -264,7 +310,7 @@ class funcGenerator {
     //first check if the types are the same and the same number of elements
     //if [i32,i32,i64] but [i32,i64] i need to drop the first element of the stack and two add i32.const 0
     //so i have the same number and types of elements
-    
+
     if (calleeType[2].length > func_caller[2].length) {
       for (let i = 0; i < calleeType[2].length - func_caller[2].length; i++) {
         this.stack.pop();
@@ -297,8 +343,9 @@ class funcGenerator {
 }
 
 class Instruction {
-  constructor(type) {
-    this.type = type;
+  constructor(module, stack) {
+    this.module = module;
+    this.stack = stack;
   }
   executeInstruction() {
     throw new Error("Method 'executeInstruction()' must be implemented.");
@@ -306,9 +353,8 @@ class Instruction {
 }
 
 class LinearInstruction extends Instruction {
-  constructor(type, operation) {
-    super(type);
-    this.operation = operation;
+  constructor(module, stack){
+    super(module, stack);
   }
   executeInstruction() {
     throw new Error("Method 'executeInstruction()' must be implemented.");
@@ -316,15 +362,22 @@ class LinearInstruction extends Instruction {
 }
 
 class ArithmeticInstruction extends LinearInstruction {
-  constructor(module, stack, operation, type) {
+  constructor(module, stack, type) {
     super(module, stack);
-    this.operation = operation;
+    let operations = ["add", "sub", "mul", "div"];
+    this.operation = operations[this.getRandomInt(0, operations.length - 1)];
     this.type = type;
+  }
+  getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1) + min);
   }
 
   executeInstruction() {
     switch (this.operation) {
       case "add":
+        this.stack.push(this.stack.pop() + " + " + this.stack.pop());
         this.module.push(`${this.type}.add`);
         break;
       case "sub":
@@ -391,7 +444,7 @@ class IfInstruction extends ControlFlowInstruction {
     this.funcGenerator = funcGenerator;
   }
 
-  executeInstruction(funcType) {
+  executeInstruction(funcType, function_id) {
 
     let randomNum = Math.floor(Math.random() * 2);
     //this.stack.push(`i32.const ${randomNum}`);
@@ -399,11 +452,11 @@ class IfInstruction extends ControlFlowInstruction {
     this.module.push(`(if (result ${funcType[2].join(" ")})`);
     //this.stack.pop(); //pop the value of the if
     this.module.push("(then");
-    this.funcGenerator.generateCallee(funcType);
+    this.funcGenerator.generateCallee(funcType, function_id);
     //this.funcGenerator.generateCallInstruction(funcType);
     this.module.push(")");
     this.module.push("(else");
-    this.funcGenerator.generateCallee(funcType);
+    this.funcGenerator.generateCallee(funcType, function_id);
     //this.funcGenerator.generateCallInstruction(funcType);
     this.module.push(")");
     this.module.push(")");
