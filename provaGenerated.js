@@ -24,17 +24,20 @@ class FuncGenerator {
     this.funcTypesIndex = {};
 
     //Function settings
-    this.allowed_types = ["i32"];//For now only i32 is supported
-    this.maxNumOfFunctions = 150;
+    this.allowed_types = ["i32"];
+    //For now only i32 is supported
+    //this.allowed_types = ["i32", "i64", "f32", "f64"];
+    this.maxNumOfFunctions = 10;
     this.maxNumOfParams = 4;
     this.maxNumOfResults = 2;
     this.maxNumOfFunctionTypes = this.allowed_types.length * (this.maxNumOfParams + this.maxNumOfResults);
 
     //Chances to modify the abstr of code
-    this.probabilityOfControlFlow = 0.5;
-    this.probabilityOfIf = 0.6;
-    this.probabilityOfCallIndirect = 0.5;
-    this.probabilityOfOperation = 0.5;
+    this.probabilityOfControlFlow = 0.8;
+    this.probabilityOfIf = 0.8;
+    this.probabilityOfCallIndirect = 0.6;
+    this.probabilityOfOperation = 0.9;
+    this.probabilityOfArithmeticOperation = 0.5;
   }
   
   
@@ -254,7 +257,9 @@ class FuncGenerator {
     let probability = Math.random();
 
     this.addLocalElementsToStack(func_caller[1], calleeType[1]);
-
+    //To use all the types, use this method instead of the one above,
+    //but it loads the stack with const values 
+    //this.addConstElementsToStack(calleeType[1]);
     if (probability < this.probabilityOfCallIndirect) {
       this.module.push(`i32.const ${calleeIndex}`);
       this.module.push(`call_indirect (type ${calleeTypeIndex})`);
@@ -283,17 +288,19 @@ class FuncGenerator {
         if (Math.random() < this.probabilityOfOperation) {
           let operation;
           if (func_caller.length >= 2) {
-            //todo:add bitwise operations random
-            if (Math.random < this.probabilityOfArithmeticOperation) {
+            let ran = Math.random();
+            console.log(ran);
+            //Add a probability var for every specific type of operations
+            if (ran < this.probabilityOfArithmeticOperation) {
              operation = new ArithmeticInstruction(this.module,this.stack,func_caller[i]); 
             } else {
               operation = new BitWiseInstruction(this.module,this.stack,func_caller[i]);
             }
             
           } else if (func_caller.length === 1) {
-            //add operations with one parameter
+            //Add operations with one parameter
           } else {
-            //add operations with no parameters
+            //Add operations with no parameters
           }
 
           operation.executeInstruction();
