@@ -27,7 +27,7 @@ class FuncGenerator {
     this.allowed_types = ["i32"];
     //For now only i32 is supported
     //this.allowed_types = ["i32", "i64", "f32", "f64"];
-    this.maxNumOfFunctions = 10;
+    this.maxNumOfFunctions = 5;
     this.maxNumOfParams = 4;
     this.maxNumOfResults = 2;
     this.maxNumOfFunctionTypes = this.allowed_types.length * (this.maxNumOfParams + this.maxNumOfResults);
@@ -289,7 +289,6 @@ class FuncGenerator {
           let operation;
           if (func_caller.length >= 2) {
             let ran = Math.random();
-            console.log(ran);
             //Add a probability var for every specific type of operations
             if (ran < this.probabilityOfArithmeticOperation) {
              operation = new ArithmeticInstruction(this.module,this.stack,func_caller[i]); 
