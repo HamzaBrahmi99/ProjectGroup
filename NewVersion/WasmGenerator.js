@@ -6,11 +6,9 @@ const os = require("os");
 //sia per gli if 
 const Instructions = require('./Instructions');
 const ControlFlowInstructions = require('./ControlFlowInstructions');
-const CallInstruction = require('./CallInstruction');
 const GraphManager = require('./GraphManager');
 const Stack = require('./Stack');
 const Module = require('./Module');
-//const generateFunctions = require('./generateFunctions');
 
 class WasmGenerator {
     constructor() {
@@ -25,12 +23,13 @@ class WasmGenerator {
         this.functionTypes = [];
         this.functionTypesByIndex = [];
 
+        //Configurations
         this.allowed_types = ["i32"];
         this.max_number_of_functions = 15;
         this.max_number_of_params = 4;
         this.max_number_of_results = 2;
         this.max_number_of_types = this.allowed_types.length * (this.max_number_of_params + this.max_number_of_results);
-        this.max_number_of_instructions = 15;
+        this.max_number_of_instructions = 5;
         this.probability_of_call_indirect = 0.6;
         this.probability_of_if = 0.6;
         this.max_depth_of_if = 5;
@@ -59,7 +58,7 @@ class WasmGenerator {
 
     generateFunctionTypes() {
         this.functionTypes = [];
-        this.functionTypesByIndex = []; // Ensure this is initialized as an empty array
+        this.functionTypesByIndex = [];
       
         for (let i = 0; i < this.max_number_of_types; i++) {
           const numParams = this.getRandomInt(0, this.max_number_of_params);
@@ -103,7 +102,7 @@ class WasmGenerator {
         for (let i = 0; i < this.max_number_of_functions; i++) {
             const func = this.functionTypes[this.functionTypesByIndex[i]];
             this.controlFlowInstructions.addCallInstructions('call',i, func);
-            this.controlFlowInstructions.addCallInstructions('call_indirect',i, func);
+            this.controlFlowInstructions.addCallIndirectInstructions('call_indirect', i, this.functionTypesByIndex[i], func);
             const funcBody = this.generateFunctionBody(i);
             this.module.addFunction(i, this.functionTypesByIndex[i], func.params, func.results, funcBody);
         }
@@ -132,9 +131,8 @@ class WasmGenerator {
                     // The stack state is updated inside the generateIfInstruction method
                 } else if (Math.random() < this.probability_of_call_indirect) {
                     // Add a call instruction
-                    let callInstruction = this.getRandomCallInstruction(Math.random() < this.probability_of_call_indirect?"call_indirect":"call");
+                    body += this.getRandomCallInstruction(stackState,Math.random() < this.probability_of_call_indirect?"call_indirect":"call");
                     //console.log(" --Selected instruction: " + callInstruction);
-                    body += callInstruction.toString() + '\n';
                 } else {
                     // Select a random instruction from the list
                     let selectedInstruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
@@ -162,17 +160,21 @@ class WasmGenerator {
 
     generateIfInstruction(stackState) {
         let ifInstruction = '';
-        if (!(stackState.length >= 1)) {
             // Create a const instruction
-            let constInstruction = this.instructions.filter(instr => instr.type === 'const');
+            let constInstruction = this.instructions.filter(instr => instr.name === `const`)[0];
+            //console.log(" --Selected instruction: " + constInstruction);
             // Add the const instruction to the stack
-            ifInstruction += constInstruction.toString() + '\n';
+            ifInstruction += constInstruction.toString() + " "+ this.getRandomInt(0, 1) + '\n';
+            //console.log(" --Selected instruction: " + ifInstruction);
+            let ifIn = this.controlFlowInstructions.filter(instr => instr.name === 'if')[0];
+            //console.log(" --Selected instruction: " + ifIn);
             // Update the stack state
             stackState = this.updateStackState(stackState, constInstruction);
-        }
+            stackState = this.updateStackState(stackState, ifIn);
 
-     ifInstruction = 'if\n';
+     ifInstruction += '(if\n';
     // Generate the then block
+    ifInstruction += '(then\n';
     let thenInstructionCount = this.getRandomInt(1, this.max_depth_of_if); // Use max_depth_of_if as the maximum
     for (let i = 0; i < thenInstructionCount; i++) {
       let possibleInstructions = this.getPossibleInstructions(stackState);
@@ -181,9 +183,9 @@ class WasmGenerator {
       stackState = this.updateStackState(stackState, instruction);
     }
     
+    ifInstruction += ')\n';
     // Generate the else block
-    if (this.getRandomInt(0, 1) === 1) {
-      ifInstruction += 'else\n';
+    ifInstruction += '(else\n';
       let elseInstructionCount = this.getRandomInt(1, this.max_depth_of_if); // Use max_depth_of_if as the maximum
       for (let i = 0; i < elseInstructionCount; i++) {
         let possibleInstructions = this.getPossibleInstructions(stackState);
@@ -191,16 +193,44 @@ class WasmGenerator {
         ifInstruction += instruction.toString() + '\n';
         stackState = this.updateStackState(stackState, instruction);
       }
-    }
-    
-    ifInstruction += 'end\n';
+    ifInstruction += ')\n';
+    //Close the if instruction
+    ifInstruction += ')\n';
+    //ifInstruction += 'end\n';
     return ifInstruction;
     }
 
-    getRandomCallInstruction(name) {
+    getRandomCallInstruction(stackState,name) {
+      //console.log("indici: " + this.functionTypesByIndex)
+      let callIn = "";
+      if(name === "call"){
         let callInstructions = this.controlFlowInstructions.filter(instruction => instruction.name === name);
-        let randomIndex = this.getRandomInt(0, callInstructions.length - 1);
-        return callInstructions[randomIndex];
+        //Gets a random call from the possible call instructions
+        let callIndex = this.getRandomInt(0, callInstructions.length - 1);
+        
+        //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
+        let call = callInstructions[callIndex];
+        return callIn += call.toString() +"\n";
+      } else {
+        let callInstructions = this.controlFlowInstructions.filter(instruction => instruction.name === name);
+        //Gets a random call from the possible call instructions
+        //const index
+        //call_indirect type
+        let callIndex = this.getRandomInt(0, callInstructions.length - 1);
+        let constInstruction = this.instructions.filter(instr => instr.name === `const`)[0];
+        let callInstruction = callInstructions[callIndex];
+        let index = callInstruction.getIstance().index;
+        //console.log("index: " , index);
+        let type = callInstruction.getIstance().caller;
+        //console.log("type: " + type);
+        callIn += constInstruction.toString().concat(" "+index + "\n");
+        callIn += callInstruction.toString().concat(" (type "+type + ")\n");
+        
+        stackState = this.updateStackState(stackState, constInstruction);
+        stackState = this.updateStackState(stackState, callInstruction);
+        //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
+        return callIn;
+      }
     }
 
       updateStackState(stackState, instruction) {

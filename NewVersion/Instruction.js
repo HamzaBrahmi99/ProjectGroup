@@ -5,6 +5,10 @@ class Instruction {
       this.consumes = consumes;
       this.produces = produces;
     }
+    getIstance(){
+      return this;
+    
+    }
     toString() {
       if (this.type === '') {
         return this.name;

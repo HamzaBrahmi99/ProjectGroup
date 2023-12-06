@@ -12,8 +12,11 @@ class ControlFlowInstructions {
         return this.instructions.filter(callback);
       }
     addCallInstructions(name, index, callee) {
-        this.instructions.push(new CallInstruction(name,index,callee));
+      this.instructions.push(new CallInstruction(name, index, null, callee));
     }
+    addCallIndirectInstructions(name, index, caller, callee) {
+      this.instructions.push(new CallInstruction(name,index,caller,callee));
+  }
 
   }
   module.exports = ControlFlowInstructions;

@@ -1,3 +1,5 @@
+const fs = require("fs");
+const os = require("os");
 class Module {
     constructor() {
       this.watCode = "(module (\n";
@@ -40,7 +42,8 @@ class Module {
         }
         elem += ")\n";
         this.watCode += elem;
-      }
+  }
+  
       addStartExport(export_id) {
         this.watCode += `(export "start" (func ${export_id}))\n`;
       }
@@ -60,7 +63,7 @@ class Module {
   
     saveToFile(fileName) {
       // Save the watCode to a .wat file
-      console.log(this.watCode);
+      fs.writeFileSync(`./output_files/${fileName}.wat`, this.watCode);
     }
   
   }
