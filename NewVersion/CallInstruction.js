@@ -1,9 +1,9 @@
 const Instruction = require('./Instruction');
 
 class CallInstruction extends Instruction {
-  constructor(name, index, caller = null, callee){
+  constructor(name, index, type = null, callee){
     super(name,"", callee.params.length, callee.results.length);
-    this.caller = caller;
+    this.type = type;
     this.callee = callee;
     this.index = index;
 }

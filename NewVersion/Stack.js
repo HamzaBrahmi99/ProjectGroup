@@ -20,6 +20,14 @@ class Stack {
     getState() {
         return this.stack;
     }
+    setState(state) {
+        this.stack = state;
+    }
+    copy() {
+        const copy = new Stack();
+        copy.stack = [...this.stack];
+        return copy;
+    }
 }
 
 module.exports = Stack;

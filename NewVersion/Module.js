@@ -2,7 +2,7 @@ const fs = require("fs");
 const os = require("os");
 class Module {
     constructor() {
-      this.watCode = "(module (\n";
+      this.watCode = "(module \n";
       this.functionTypes = [];
       this.functions = [];
     }
@@ -49,6 +49,7 @@ class Module {
       }
   
       addFunction(funcIndex, typeIndex, params, result, funcBody) {
+        //console.log(`Adding function ${funcIndex} with body ${funcBody}`);
         //const paramsString = params.map((param, index) => `(param $p${index + 1} ${param})`).join(' ');
         //const resultString = result.map(res => `(result ${res})`).join(' ');
         const paramsString = params.length ? `(param ${params.join(" ")})` : "";

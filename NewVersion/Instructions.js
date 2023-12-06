@@ -4,22 +4,22 @@ class Instructions {
   constructor() {
     this.instructions = [
       // Stack manipulation
-      new Instruction('local.get', '', 0, 1),
+      //new Instruction('local.get', '', 0, 1),
       new Instruction('const', 'i32', 0, 1),
       new Instruction('drop', '', 1, 0),
       //new Instruction('return', '', 1, 0),
-      new Instruction('local.set', '', 1, 0),
+      //new Instruction('local.set', '', 1, 0),
       // Arithmetic operators
       new Instruction('add', 'i32', 2, 1),
       new Instruction('sub', 'i32', 2, 1),
       new Instruction('mul', 'i32', 2, 1),
       new Instruction('div_s', 'i32', 2, 1),
       new Instruction('div_u', 'i32', 2, 1),
-      new Instruction('rem', 'i32', 2, 1),
+      new Instruction('rem_u', 'i32', 2, 1),
       // Bitwise operators
-      /*new Instruction('and', 'i32', 2, 1),
+      new Instruction('and', 'i32', 2, 1),
       new Instruction('or', 'i32', 2, 1),
-      new Instruction('xor', 'i32', 2, 1),*/
+      new Instruction('xor', 'i32', 2, 1),
       // Comparison operators
       /*new Instruction('eq', 'i32', 2, 1),
       new Instruction('ne', 'i32', 2, 1),
