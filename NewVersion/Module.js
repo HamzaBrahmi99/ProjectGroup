@@ -54,7 +54,7 @@ class Module {
         //const resultString = result.map(res => `(result ${res})`).join(' ');
         const paramsString = params.length ? `(param ${params.join(" ")})` : "";
         const resultString = result.length ? `(result ${result.join(" ")})` : "";
-        const functionString = `(func $${funcIndex} (type ${typeIndex}) ${paramsString} ${resultString}\n${funcBody}\n)\n`;
+        const functionString = `(func $${funcIndex} (type ${typeIndex}) ${paramsString} ${resultString}\n${funcBody})\n`;
         this.watCode += functionString;
       }
   

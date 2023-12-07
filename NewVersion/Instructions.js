@@ -21,7 +21,7 @@ class Instructions {
       new Instruction('or', 'i32', 2, 1),
       new Instruction('xor', 'i32', 2, 1),
       // Comparison operators
-      /*new Instruction('eq', 'i32', 2, 1),
+      new Instruction('eq', 'i32', 2, 1),
       new Instruction('ne', 'i32', 2, 1),
       new Instruction('lt_s', 'i32', 2, 1),
       new Instruction('lt_u', 'i32', 2, 1),
@@ -30,7 +30,7 @@ class Instructions {
       new Instruction('le_s', 'i32', 2, 1),
       new Instruction('le_u', 'i32', 2, 1),
       new Instruction('ge_s', 'i32', 2, 1),
-      new Instruction('ge_u', 'i32', 2, 1),*/
+      new Instruction('ge_u', 'i32', 2, 1),
     ];
 }
   filter(callback) {
