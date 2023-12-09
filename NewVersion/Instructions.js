@@ -4,11 +4,10 @@ class Instructions {
   constructor() {
     this.instructions = [
       // Stack manipulation
-      //new Instruction('local.get', '', 0, 1),
       new Instruction('const', 'i32', 0, 1),
       new Instruction('drop', '', 1, 0),
-      //new Instruction('return', '', 1, 0),
-      //new Instruction('local.set', '', 1, 0),
+      //new Instruction('local.get', 'i32', 0, 1),
+      //new Instruction('local.set', 'i32', 1, 0),
       // Arithmetic operators
       new Instruction('add', 'i32', 2, 1),
       new Instruction('sub', 'i32', 2, 1),

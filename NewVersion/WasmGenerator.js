@@ -25,15 +25,22 @@ class WasmGenerator {
 
         //Configurations
         this.allowed_types = ["i32"];
-        this.max_number_of_functions = 15;
+        this.max_number_of_functions = 50;
         this.max_number_of_params = 4;
         this.max_number_of_results = 2;
         this.max_number_of_types = this.allowed_types.length * (this.max_number_of_params + this.max_number_of_results);
         this.min_number_of_instructions = 10;
-        this.max_number_of_instructions = 50;
-        this.probability_of_call_indirect = 0.6;
-        this.probability_of_if = 0.6;
-        this.max_depth_of_if = 5;
+        this.max_number_of_instructions = 80;
+        //Call configuration
+        this.probability_of_call = 0.5; //prob to have call or call_indirect
+        this.probability_of_call_indirect = 0.6; //prob to have a call_indirect as call
+        //If configuration
+        this.probability_of_if = 0.5;
+        this.max_depth_of_if = 3;
+        this.nestedIfCounter = 0;
+        this.maxNestedIfs = 3;
+        //Locals configuration
+        this.localCount = 0;
 
     }
     reset() {
@@ -117,56 +124,45 @@ class WasmGenerator {
       generateFunctionBody(funcIndex, funcType) {
         this.stack = new Stack();
         let body = '';
-        console.log(`Generating function body for function ${funcIndex} with type ${funcType.params} -> ${funcType.results} ( ${funcType.results.length} )`);
-        
+        //console.log(`Generating function body for function ${funcIndex} with type ${funcType.params} -> ${funcType.results} ( ${funcType.results.length} )`);
+        //let function_type_of_this_body = this.functionTypes[this.functionTypesByIndex[funcIndex]];
         let stackState = this.stack.getState();
-        /*    
-        let number_of_instructions = this.getRandomInt(1, this.max_number_of_instructions);
-        let instructionCount = 0;
-        let i=0;
-        while (instructionCount < this.min_number_of_instructions || (instructionCount >= this.min_number_of_instructions && stackState.length < funcType.results.length)) {
-          //console.log(`Stack state length: ${stackState.length}, function results length: ${func.results.length}, instruction count: ${instructionCount}`);
-          //console.log(i + ") Actual stackState: " + stackState.length);
-          //i++;
-          // Get the list of possible instructions
-          i++;
-          let possibleInstructions = this.getPossibleInstructions(stackState);
-          //console.log("  --Possible instructions: " + possibleInstructions);
-          // Check if there are any possible instructions
-          if (possibleInstructions.length > 0) {
-            // Select a random instruction from the list
-                  let selectedInstruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
 
-                // Use the random instruction
-                if(selectedInstruction.name === "const"){
-                  console.log(i + `: Stack state before instruction: ${stackState}`);
-                  let result = this.handleConstInstruction(stackState, selectedInstruction);
-                  body += result.body;
-                  stackState = result.stackState;
-                  this.stack.setState(stackState);  
-                  instructionCount++;
-                } else{
-                  // Log the stack state before the instruction
-                  console.log(i + `: Stack state before instruction: ${stackState}`);
-                  console.log(` Selected instruction: ${selectedInstruction.name}`);
-                  console.log(`   Instruction consumes: ${selectedInstruction.consumes} Instruction produces: ${selectedInstruction.produces}`);
-                  // Update the stack state
-                  stackState = this.updateStackState(stackState, selectedInstruction);
-                  // Log the stack state after the instruction
-                  console.log(`---- Stack state after instruction: ${stackState}`);
-                  //TODO: gestire locals.get e locals.set
-                  body += selectedInstruction.toString() + '\n';
-                  this.stack.setState(stackState);
-                  instructionCount++;
-                }
-            }
-          }*/
-
-          // Generate at least min_number_of_instructions instructions
-        for (let i = 0; i < this.min_number_of_instructions; i++) {
-          let possibleInstructions = this.getPossibleInstructions(stackState, this.instructions);
-          if (possibleInstructions.length > 0) {
-            if(Math.random() < 0.4){
+        // Generate instructions for the function body
+        let result = this.generateInstructions(body,stackState, this.min_number_of_instructions, funcType.results.length);
+        body += result.body;
+        stackState = result.stackState;
+        return body;
+    }
+    
+    //TODO: l'if se sta alla fine deve per forza avere lo stesso numero di eleemnti as result della fuzione
+    generateInstructions(body,stackState, min_instructions, number_of_result, instruction_banned_name = null) {
+      let instructionCount = 0;
+      for (let i = 0; i < min_instructions; i++) {
+        if (instructionCount > this.max_number_of_instructions) {
+          let fixed = this.fixStackState(stackState, number_of_result);
+          //console.log("Fixed stackState: " + fixed.body + " - " + fixed.stackState);
+          body += fixed.body;
+          stackState = fixed.stackState;
+          return {
+            body: body,
+            stackState: stackState
+          }
+        }
+        //console.log("FUnction result: " + number_of_result + " - " + body + " - " + stackState")
+        instructionCount++;
+        let possibleInstructions = this.getPossibleInstructions(stackState, this.instructions);
+        if (possibleInstructions.length > 0) {
+          if(Math.random() < this.probability_of_if && stackState.length === number_of_result-1 && instruction_banned_name !== "if"){  //TODO: Togli il +5, era per non fare l'if durante i test
+            //let ifInstruction = this.controlFlowInstructions.filter(instr => instr.name === 'if')[0];
+            //console.log("stackState before if: " + stackState.length);
+            let result = this.generateIfInstruction(stackState);
+            body += result.body;
+            stackState = result.stackState;
+            this.stack.setState(stackState);
+            //console.log("stackState after if: " + stackState.length);
+          } else {
+            if(Math.random() < this.probability_of_call){
               let callType = Math.random() < this.probability_of_call_indirect ? 'call' : 'call_indirect';
               let result = this.getRandomCallInstruction(stackState, callType);
               body += result.body;
@@ -187,16 +183,41 @@ class WasmGenerator {
             }
           }
         }
+      }
 
-        // Continue generating instructions until the elements in the stackState matches the function results length
-        while (stackState.length !== funcType.results.length) {
+      // Continue generating instructions until the elements in the stackState matches the function results length
+      //instructionCount = 0;
+      while (stackState.length !== number_of_result) {
+        if (instructionCount > this.max_number_of_instructions) {
+          let result = this.fixStackState(stackState, number_of_result);
+          body += result.body;
+          stackState = result.stackState;
+          this.stack.setState(stackState);
+          return {
+            body: body,
+            stackState: stackState
+          }
+        }
+        instructionCount++;
+        //if call instruction
+        if(Math.random() < this.probability_of_if && stackState.length === number_of_result-1 && instruction_banned_name !== "if"){  //TODO: Togli il +5, era per non fare l'if durante i test
+          //let ifInstruction = this.controlFlowInstructions.filter(instr => instr.name === 'if')[0];
+          //console.log("stackState before if: " + stackState.length);
+          let result = this.generateIfInstruction(stackState);
+          body += result.body;
+          stackState = result.stackState;
+          this.stack.setState(stackState);
+          //console.log("stackState after if: " + stackState.length);
+        } else {
           let possibleInstructions = this.getPossibleInstructions(stackState, this.instructions);
-          //if call instruction
           if (possibleInstructions.length > 0) {
             let selectedInstruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
-            if(Math.random() < 0.3){
+            if(Math.random() < this.probability_of_call){
               let callType = Math.random() < this.probability_of_call_indirect ? 'call' : 'call_indirect';
+              //console.log('Before call:', stackState);
+              //console.log('Executing:', callType);
               let result = this.getRandomCallInstruction(stackState, callType);
+              //console.log('After call:', result.stackState);
               body += result.body;
               stackState = result.stackState;
               this.stack.setState(stackState);
@@ -214,7 +235,41 @@ class WasmGenerator {
             }
           }
         }
-        return body;
+      }
+      return {
+        body: body,
+        stackState: stackState
+      }
+}
+    fixStackState(stackState,number_of_result) {
+      let body = "";
+      //console.log("Fixing stackState: " + stackState.length + " - " + number_of_result);
+      let instructions;
+      while (stackState.length > number_of_result) {
+        instructions = this.getPossibleInstructions(stackState, this.instructions).filter(instr => instr.name === "drop");
+        //instructions = instructions.filter(instr => instr.name !== "if");//TODO: da togliere, solo per test
+        let selectedInstruction = instructions[this.getRandomInt(0, instructions.length - 1)];
+        if(selectedInstruction.name === "const"){
+          let result = this.handleConstInstruction(stackState, selectedInstruction);
+          body += result.body;
+          stackState = result.stackState;
+        } else {
+          body += selectedInstruction.toString() + '\n';
+          stackState = this.updateStackState(stackState, selectedInstruction);
+        }
+        //stackState = this.updateStackState(stackState, selectedInstruction);
+      }
+      while (stackState.length < number_of_result) {
+        instructions = this.getPossibleInstructions(stackState, this.instructions).filter(instr => instr.name === "const");
+        let selectedInstruction = instructions[this.getRandomInt(0, instructions.length - 1)];
+        let result = this.handleConstInstruction(stackState, selectedInstruction);
+        body += result.body;
+        stackState = result.stackState;
+      }
+      return {
+        body: body,
+        stackState: stackState
+      }
     }
 
     getPossibleInstructions(stackState, instructions) {
@@ -227,65 +282,129 @@ class WasmGenerator {
     }
 
     generateIfInstruction(stackState) {
-        let ifInstruction = '';
-        // Create a const instruction
-        let constInstruction = this.instructions.filter(instr => instr.name === `const`)[0];
-        //console.log(" --Selected instruction: " + constInstruction);
-        // Add the const instruction to the stack
-        ifInstruction += constInstruction.toString() + " "+ this.getRandomInt(0, 1) + '\n';
-        //console.log(" --Selected instruction: " + ifInstruction);
-        let ifIn = this.controlFlowInstructions.filter(instr => instr.name === 'if')[0];
-        //console.log(" --Selected instruction: " + constInstruction.consumes);
-        // Update the stack state
-        stackState = this.updateStackState(stackState, constInstruction);
-        stackState = this.updateStackState(stackState, ifIn);
+      let ifInstruction = '';
+      let min_instr_for_if = 2;
+      let max_results_for_if = 2; //elementi che produce l'if nello stack alla fine 
+      let condition = this.getRandomInt(0,1);
+      //If can have results
+      let actual_number_of_results = this.getRandomInt(1,max_results_for_if);
 
-        ifInstruction += '(if\n';
-        // Generate the then block
-        
-        let thenStackState = [...stackState];
-        let elseStackState = [...stackState];
-        //console.log(" --Selected instruction: " + thenStackState);
-        ifInstruction += '(then\n';
-        let thenInstructionCount = this.getRandomInt(1, this.max_depth_of_if); // Use max_depth_of_if as the maximum
-        for (let i = 0; i < thenInstructionCount; i++) {
-          let possibleInstructions = this.getPossibleInstructions(thenStackState);
-          //toDO:rimuovi
-          possibleInstructions = possibleInstructions.filter(instr => instr.name !== 'if');
-          let instruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
-          if(instruction.name === "const"){
-            ifInstruction += this.handleConstInstruction(stackState, instruction);
-          } else{
-            ifInstruction += instruction.toString() + '\n';
-          }
-          thenStackState = this.updateStackState(thenStackState, instruction);
+      // Check if this is a nested if instruction that has reached the max depth
+      if (this.nestedIfCounter > this.maxNestedIfs) {
+        //console.log("Max nested ifs reached");
+        let result = this.generateInstructions(ifInstruction,stackState, this.min_number_of_instructions, actual_number_of_results, "if");
+        //console.log(" --Maxed If instruction: " + result.body + " - " + result.stackState);
+        return {
+          body: result.body,
+          stackState: result.stackState
+        } 
+    } 
+    // Increment the counter
+    this.nestedIfCounter++;
+// Check if this is a non-nested if instruction
+if (this.nestedIfCounter === 1) {
+  //console.log("Stack before if: " + JSON.stringify(stackState));
+}
+
+    
+
+      //Open the if instruction
+     //log("Stack before if: " + stackState);
+      
+      // Create a const instruction for the if condition
+      let constInstruction = this.instructions.filter(instr => instr.name === `const`)[0];
+      //console.log("Stack before const of if: " + stackState.length);
+      let constValue = this.handleConstInstruction(stackState, constInstruction, condition);
+      ifInstruction += constValue.body;
+      stackState = constValue.stackState;
+      //console.log("Stack after const of if: " + stackState.length);
+      let ifIn = this.controlFlowInstructions.filter(instr => instr.name === 'if')[0];
+      stackState = this.updateStackState(stackState, ifIn);
+      //console.log("Stack after if consumes: " + stackState.length);
+      ifInstruction += '(if ';
+      if(Math.random() < 0.5){
+        ifInstruction += '(result ';
+        for (let i = 0; i < actual_number_of_results; i++) {
+          ifInstruction += this.allowed_types[this.getRandomInt(0, this.allowed_types.length - 1)] + ' ';
         }
-        
         ifInstruction += ')\n';
-        // Generate the else block
-        ifInstruction += '(else\n';
-          let elseInstructionCount = this.getRandomInt(1, this.max_depth_of_if); // Use max_depth_of_if as the maximum
-          for (let i = 0; i < elseInstructionCount; i++) {
-            let possibleInstructions = this.getPossibleInstructions(elseStackState);
-            //toDO:rimuovi
-          possibleInstructions = possibleInstructions.filter(instr => instr.name !== 'if');
-          let instruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
-          if(instruction.name === "const"){
-            ifInstruction += this.handleConstInstruction(stackState, instruction);
-          } else{
-            ifInstruction += instruction.toString() + '\n';
-          }
-          elseStackState = this.updateStackState(elseStackState, instruction);
-          }
-        ifInstruction += ')\n';
-        //Close the if instruction
-        ifInstruction += ')\n';
-        //ifInstruction += 'end\n';
-        return ifInstruction;
+      } else { //Non ha risultati
+        actual_number_of_results = 0;
+        ifInstruction += '\n';
+      }
+      
+
+      // Create a copy of the stack state for the then and else blocks
+      let thenStackState = new Stack().getState();
+      let elseStackState = new Stack().getState();
+
+      //Devo controllare che il numero di elementi nello stack alla fine sia uguale a resultOfIf
+      //Then
+      let thenInstruction = '(then\n';
+      //Genero istruzioni per il then
+      //console.log("State real stack before: " + stackState.length);
+      //console.log(" -State copy before then: " + thenStackState.length);
+      let thenResult = this.generateInstructions(thenInstruction,thenStackState, min_instr_for_if, actual_number_of_results);
+      thenInstruction = thenResult.body;
+      thenStackState = thenResult.stackState;
+      //console.log(" -State copy after then: " + thenStackState.length);
+      //Close the then instruction
+      thenInstruction += ')\n';
+
+      //Else can be optional
+      let elseInstruction = '';
+      let elseResult;// = { body: elseInstruction, stackState: elseStackState };
+      //console.log(" -State copy before else: " + elseStackState.length);
+      let else_probability = Math.random();
+      else_probability--;
+      if (actual_number_of_results > 0 || (actual_number_of_results === 0 && else_probability < 0.5)) {
+        //Else
+        elseInstruction += '(else\n';
+        //Genero istruzioni per l'else
+        elseResult = this.generateInstructions(elseInstruction,elseStackState, min_instr_for_if,actual_number_of_results);
+        //console.log("Else result: " + elseResult.body + " - " + elseResult.stackState);
+        elseInstruction = elseResult.body;
+        elseStackState = elseResult.stackState;
+        //Close the else instruction
+        elseInstruction += ')\n';
+      }
+      //console.log(" -State copy after else: " + elseStackState.length);
+      //console.log("State real stack after: " + stackState.length);
+
+      // Append then and else blocks to the ifInstruction
+      //console.log("Then: " + thenInstruction);
+      ifInstruction += thenInstruction;
+      //console.log("Else: " + elseInstruction);
+      ifInstruction += elseInstruction;
+      //console.log("If fine: " + ifInstruction);
+      // Update stackState based on resultOfIf
+      if(condition === 1){
+        thenResult.stackState.forEach(element => {
+          stackState.push(element);
+      });
+      } else if(condition === 0 && else_probability < 0.5){
+        elseResult.stackState.forEach(element => {
+          stackState.push(element);
+      });
+    } 
+      ifInstruction += ')\n';
+
+// Check if this is a non-nested if instruction
+if (this.nestedIfCounter === 1) {
+  //console.log("Stack after if: " + JSON.stringify(stackState));
+}
+      this.nestedIfCounter--;
+
+      return {
+        body: ifInstruction,
+        stackState: stackState
+      }
     }
 
-    canCallFunction(stackState){
-    }
+
+
+
+
 
     //gli passo call o call_indirect come name, ritorna body e stackState
     getRandomCallInstruction(stackState,name) {
@@ -293,7 +412,7 @@ class WasmGenerator {
       let callInstructions = this.getPossibleInstructions(stackState,this.controlFlowInstructions.filter(instr => instr.name === name));
       let callInstruction = callInstructions[this.getRandomInt(0, callInstructions.length - 1)];
       if(callInstruction === undefined){
-        console.log("Non ho chiaamte da faa")
+        //console.log("Non ho chiaamte da faa")
         let constInstruction = this.instructions.filter((instr) => instr.name === `const`)[0];
         let callInstruction = this.handleConstInstruction(stackState, constInstruction);
         callBody += callInstruction.body;
@@ -320,7 +439,7 @@ class WasmGenerator {
 
         callBody += callInstruction.toString().concat(" (type " + type + ")\n");
         //need to add the consume of the const for the call_indirect
-        stackState = this.updateStackState(stackState, callInstruction);
+        stackState = this.updateStackState(stackState, callInstruction);//Occhio che se è call_indirect qui dentro consuma uno in più dei parametri richiesti, altrimenti si può fare +1 ai params quando creo le call_indirect all'inizio
         //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
         return {
           body: callBody,
@@ -329,68 +448,26 @@ class WasmGenerator {
       }
     }
 
-    //TODO: fix this
-    WRONGgetRandomCallInstruction(stackState,name) {
-      //console.log("indici: " + this.functionTypesByIndex)
-      let callIn = "";
-      let callInstructions = this.controlFlowInstructions.filter(instruction => instruction.name === name && instruction.consumes <= stackState.length);
-        if(callInstructions.length === 0){
-        let instructions = this.getPossibleInstructions(stackState,this.controlFlowInstructions.filter(instr => instr.name !== "if" ));
-        instructions = instructions.filter(instr => instr.consumes <= 0);
-        let random = this.getRandomInt(0, instructions.length - 1);
-        let inst = instructions[random];
-        if(inst.name === "const"){
-          let result = this.handleConstInstruction(stackState, selectedInstruction);
-          body += result.body;
-          stackState = result.stackState;
-          this.stack.setState(stackState);
-        }
-        else {
-          //another instruction that is not call or call_indirect or const
-          stackState = this.updateStackState(stackState, inst);
-          this.stack.setState(stackState);
-          return instructions[random].toString() + "\n";
-        }
-      }
-      let callIndex = this.getRandomInt(0, callInstructions.length - 1);
-      let call = callInstructions[callIndex];
-      console.log("   --Selected call instruction: " + call);
-
-      if(name === "call"){
-        stackState = this.updateStackState(stackState, call);
-        return callIn += call.toString() +"\n";
-      } else {
-        let constInstruction = this.instructions.filter((instr) => instr.name === `const`)[0];
-        let index = call.getIstance().index;
-        let type = call.getIstance().type;
-        let result = this.handleConstInstruction(stackState, selectedInstruction, index);
-        body += result.body;
-        stackState = result.stackState;
-
-        callIn += call.toString().concat(" (type " + type + ")\n");
-        stackState = this.updateStackState(stackState, constInstruction);
-        //need to add the consume of the const for the call_indirect
-        stackState = this.updateStackState(stackState, call);
-        //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
-        return {
-          body: callIn + " " + this.getRandomInt(0, 100) + "\n",
-          stackState: stackState
-        };      
-      }
-    }
-
     handleConstInstruction(stackState, instruction, index = null) {
-      console.log(`Const instruction: ${instruction.name}`);
-      console.log(` Selected instruction: ${instruction.name}`);
-      console.log(`   Instruction consumes: ${instruction.consumes} Instruction produces: ${instruction.produces}`);
+      //console.log(`Const instruction: ${instruction.name}`);
+      //console.log(` Selected instruction: ${instruction.name}`);
+      //console.log(`   Instruction consumes: ${instruction.consumes} Instruction produces: ${instruction.produces}`);
       let number;
       if(index === null){
         number = this.getRandomInt(0, 100)
       } else {
         number = index;
       }
+      if(index === 0 || index === 1){
+        //console.log(index);
+      //console.log(" -Updating before inside the const instruction: " + stackState.length)
       stackState = this.updateStackState(stackState, instruction);
-      console.log(`---- Stack state after instruction: ${stackState}`);
+      //console.log(" -Updated after inside the const instruction: " + stackState.length)
+      } else {
+        stackState = this.updateStackState(stackState, instruction);
+      }
+
+      //console.log(`---- Stack state after instruction: ${stackState}`);
       
       return {
         body: instruction.toString() + " " + number + "\n",
@@ -399,8 +476,8 @@ class WasmGenerator {
     }
 
       updateStackState(stackState, instruction) {
-        //Remove the values consumed by the call_indirect or if instruction from the stack
-        if (instruction.name === 'call_indirect' || instruction.name === 'if') {
+        //Remove the values consumed by the call_indirect from the stack
+        if (instruction.name === 'call_indirect') {//si può togliere facendo +1 ai params quando creo le call_indirect all'inizio
           stackState.pop();
         }
         // Remove the values consumed by the instruction from the stack
@@ -414,7 +491,6 @@ class WasmGenerator {
           //console.log(" --produce: " + i);
           stackState.push(instruction.type);
         }
-      
         return stackState;
       }
 
