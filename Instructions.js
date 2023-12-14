@@ -6,8 +6,8 @@ class Instructions {
       // Stack manipulation
       new Instruction('const', 'i32', 0, 1),
       new Instruction('drop', '', 1, 0),
-      //new Instruction('local.get', 'i32', 0, 1),
-      //new Instruction('local.set', 'i32', 1, 0),
+      new Instruction('get', 'local', 0, 1),
+      new Instruction('set', 'local', 1, 0),
       // Arithmetic operators
       new Instruction('add', 'i32', 2, 1),
       new Instruction('sub', 'i32', 2, 1),
