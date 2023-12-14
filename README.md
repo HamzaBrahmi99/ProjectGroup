@@ -23,4 +23,4 @@ cd ProjectGroup
 npm install
 
 # Run the application
-npm main.js
+node main.js
