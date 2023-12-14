@@ -5,7 +5,6 @@ class ControlFlowInstructions {
     constructor() {
       this.instructions = [
         new Instruction('if',"", 1, 0),
-        //new Instruction('return', '', 1, 0),
         // Instructions call instructions will be added by addCallInstructions()
         // Instructions return instructions will be added by addReturnInstructions()
       ];

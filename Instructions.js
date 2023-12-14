@@ -37,14 +37,3 @@ class Instructions {
   }
 }
 module.exports = Instructions;
-
-
-/*
-Da mettere nel main generator per decidere se fare call o call_indirect:
-const callProbability = 0.5; // Replace with your actual probability
-
-for (const func of functions) {
-  const instructionName = Math.random() < callProbability ? 'call' : 'call_indirect';
-  instructions.push(new CallInstruction(instructionName, func));
-}
-*/

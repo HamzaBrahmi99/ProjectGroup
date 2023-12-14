@@ -49,9 +49,6 @@ class Module {
       }
   
       addFunction(funcIndex, typeIndex, params, result, funcBody) {
-        //console.log(`Adding function ${funcIndex} with body ${funcBody}`);
-        //const paramsString = params.map((param, index) => `(param $p${index + 1} ${param})`).join(' ');
-        //const resultString = result.map(res => `(result ${res})`).join(' ');
         const paramsString = params.length ? `(param ${params.join(" ")})` : "";
         const resultString = result.length ? `(result ${result.join(" ")})` : "";
         const functionString = `(func $${funcIndex} (type ${typeIndex}) ${paramsString} ${resultString}\n${funcBody})\n`;
