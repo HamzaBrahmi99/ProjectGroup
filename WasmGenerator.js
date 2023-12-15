@@ -5,7 +5,7 @@ const ControlFlowInstructions = require('./ControlFlowInstructions');
 const GraphManager = require('./GraphManager');
 const Stack = require('./Stack');
 const Module = require('./Module');
-//TODO: la gestione dei return all'interno degli if è veramente complicata. 
+//TODO: la gestione dei return all'interno degli if è complicata. 
 //In questa implementazione non è possibile avere un return all'interno di un if, 
 //ma se lo si vuole aggiungere bisogna gestire i casi: 
 //- Se il return è in un solo branch, in entrambi. 
@@ -17,6 +17,7 @@ const Module = require('./Module');
 class WasmGenerator {
     constructor() {
         this.graphManager = new GraphManager();
+        this.compiler_cg = new Set();
         this.instructions = new Instructions();
         this.controlFlowInstructions = new ControlFlowInstructions();
         this.module = new Module();
@@ -27,7 +28,7 @@ class WasmGenerator {
 
         //Personalization of the generator
         this.allowed_types = ["i32"]; //array of allowed types
-        this.max_number_of_functions = 20;  //max number of functions
+        this.max_number_of_functions = 5;  //max number of functions
         this.max_number_of_params = 4;  //max number of params
         this.max_number_of_results = 2; //max number of results
         this.min_number_of_instructions = 15; //min number of instructions for a function
@@ -39,6 +40,8 @@ class WasmGenerator {
         this.probability_of_if = 0.4; //prob to have an if
         this.maxNestedIfs = 1;  //max nested if
         this.min_instr_for_if = 5; //min number of instructions for an if branch
+        //Locals
+        this.max_number_of_locals = 3; //max number of locals variables
 
         //Inizialization of the generator variables
         this.max_number_of_types = this.allowed_types.length * (this.max_number_of_params + this.max_number_of_results);
@@ -51,6 +54,7 @@ class WasmGenerator {
         this.graphManager.reset();
         this.module = new Module();
         this.stack = new Stack();
+        this.compiler_cg = new Set();
         this.functionBodies = [];
         this.functionTypes = [];
         this.functionTypesByIndex = [];
@@ -64,10 +68,12 @@ class WasmGenerator {
         this.generateFunctionTypes();
         this.assignRandomFunctionTypeToEachFunction();
         this.module.generateFunctionTable(this.max_number_of_functions);
-        this.module.addStartExport(this.getRandomInt(0, this.max_number_of_functions - 1));
-        this.generateFunctionBodies();
+        let export_id = this.getRandomInt(0, this.max_number_of_functions - 1);
+        this.module.addStartExport(export_id);
+        this.generateFunctionBodies(export_id);
         this.module.closeModule();
-        this.module.saveToFile(wat_name);
+        this.module.saveToFileWat(wat_name);
+        this.generateDotData(wat_name);
     }
 
     generateFunctionTypes() {
@@ -111,7 +117,7 @@ class WasmGenerator {
             this.functionTypesByIndex[i] = this.getRandomInt(0, this.functionTypes.length - 1);
         }
     }
-    generateFunctionBodies() {
+    generateFunctionBodies(export_id) {
         this.functionBodies = [];
         //adds all the calls to the control flow instructions
         for(let i = 0; i < this.max_number_of_functions; i++){
@@ -121,19 +127,21 @@ class WasmGenerator {
         }
         for (let i = 0; i < this.max_number_of_functions; i++) {
             const type = this.functionTypes[this.functionTypesByIndex[i]];
+            this.createNode(i, export_id);
             const funcBody = this.generateFunctionBody(i,type);
             this.module.addFunction(i, this.functionTypesByIndex[i], type.params, type.results, funcBody);
         }
     }
-
+      //func index e la sua type
       generateFunctionBody(funcIndex, funcType) {
         this.stack = new Stack();
         let body = '';
         let stackState = this.stack.getState();
         //Genero n_parmas locals
-        let localsBody = this.generateLocals(funcType.params.length);
+        let localsBody = this.generateLocals();
+        console.log("funcIndex: ", funcIndex)
         // Generate instructions for the function body
-        let newBody = this.generateInstructions(body,stackState, this.min_number_of_instructions, funcType.results.length, null, funcType);
+        let newBody = this.generateInstructions(funcIndex,body,stackState, this.min_number_of_instructions, funcType.results.length, null, funcType);
         body += localsBody;
         body += newBody.body;
         stackState = newBody.stackState;
@@ -142,7 +150,8 @@ class WasmGenerator {
     }
   
     //TODO: per adesso ho bannato i return all'interno degli if.
-    generateInstructions(body,stackState, min_instructions, number_of_result, instruction_banned_name = null, funcType) {
+    generateInstructions(funcIndex,body,stackState, min_instructions, number_of_result, instruction_banned_name = null, funcType) {
+      //let function_id = funcIndex;
       let number_of_params = funcType.params.length;
       let instructionCount = 0;
       this.returnExit = false;
@@ -172,9 +181,9 @@ class WasmGenerator {
           let result;
           //if the if is the last instruction, it must have the same number of elements as the function results
           if(instructionCount === number_of_result){
-            result = this.generateIfInstruction(stackState, number_of_result, funcType, true);
+            result = this.generateIfInstruction(funcIndex,stackState, number_of_result, funcType, true);
           } else {
-            result = this.generateIfInstruction(stackState, number_of_result, funcType,false);
+            result = this.generateIfInstruction(funcIndex,stackState, number_of_result, funcType,false);
           }
           body += result.body;
           stackState = result.stackState;
@@ -182,7 +191,7 @@ class WasmGenerator {
         } else {
           if(Math.random() < this.probability_of_call){
             let callType = Math.random() < this.probability_of_call_indirect ? 'call' : 'call_indirect';
-            let result = this.getRandomCallInstruction(stackState, callType);
+            let result = this.getRandomCallInstruction(funcIndex,stackState, callType);
             body += result.body;
             stackState = result.stackState;
             this.stack.setState(stackState);
@@ -242,9 +251,9 @@ class WasmGenerator {
           let result;
           //console.log("Wbefore if stackState: ", stackState);
           if(instructionCount === number_of_result){
-            result = this.generateIfInstruction(stackState, number_of_result, funcType, true);
+            result = this.generateIfInstruction(funcIndex,stackState, number_of_result, funcType, true);
           } else {
-            result = this.generateIfInstruction(stackState, number_of_result, funcType, false);
+            result = this.generateIfInstruction(funcIndex,stackState, number_of_result, funcType, false);
           }
           body += result.body;
           stackState = result.stackState;
@@ -262,7 +271,7 @@ class WasmGenerator {
             let selectedInstruction = possibleInstructions[this.getRandomInt(0, possibleInstructions.length - 1)];
             if(Math.random() < this.probability_of_call){
               let callType = Math.random() < this.probability_of_call_indirect ? 'call' : 'call_indirect';
-              let result = this.getRandomCallInstruction(stackState, callType);
+              let result = this.getRandomCallInstruction(funcIndex,stackState, callType);
               body += result.body;
               stackState = result.stackState;
               this.stack.setState(stackState);
@@ -339,10 +348,10 @@ class WasmGenerator {
         };
     }
     //(local $var i32) con parentesi!
-    generateLocals(number_of_params){
+    generateLocals(){
       let body = "";
       let locals = [];
-      let number_of_locals = this.getRandomInt(0, number_of_params);
+      let number_of_locals = this.getRandomInt(0, this.max_number_of_locals);
       for(let i = 0; i < number_of_locals; i++){
         let local = {};
         this.localCounter++;
@@ -420,7 +429,7 @@ class WasmGenerator {
         return possibleInstructions;
     }
 
-    generateIfInstruction(stackState, number_of_results = null, funcType = null, lastInstruction) {
+    generateIfInstruction(funcIndex,stackState, number_of_results = null, funcType = null, lastInstruction) {
       let ifInstruction = '';
       let max_results_for_if = 2; //elementi che produce l'if nello stack alla fine 
       let condition = this.getRandomInt(0,1);
@@ -435,7 +444,7 @@ class WasmGenerator {
       // Check if this is a nested if instruction that has reached the max depth, just to avoid the infinite loops
       if (this.nestedIfCounter > this.maxNestedIfs) {
         //If it is, generate random "not-if" instructions
-        let result = this.generateInstructions(ifInstruction,stackState, this.min_number_of_instructions, actual_number_of_results, "if", funcType);
+        let result = this.generateInstructions(funcIndex,ifInstruction,stackState, this.min_number_of_instructions, actual_number_of_results, "if", funcType);
         return {
           body: result.body,
           stackState: result.stackState
@@ -464,7 +473,7 @@ class WasmGenerator {
 
       //Then
       let thenInstruction = '(then\n';
-      let thenResult = this.generateInstructions(thenInstruction,thenStackState, this.min_instr_for_if, actual_number_of_results, "return", funcType);
+      let thenResult = this.generateInstructions(funcIndex,thenInstruction,thenStackState, this.min_instr_for_if, actual_number_of_results, "return", funcType);
       thenInstruction = thenResult.body;
       thenStackState = thenResult.stackState;
       //Close the then instruction
@@ -477,7 +486,7 @@ class WasmGenerator {
       if (actual_number_of_results > 0 || (elseProbability < 0.5 && actual_number_of_results === 0) ) {
         elseInstruction += '(else\n';
         //Genero istruzioni per l'else
-        elseResult = this.generateInstructions(elseInstruction,elseStackState, this.min_instr_for_if,actual_number_of_results, "return", funcType);
+        elseResult = this.generateInstructions(funcIndex,elseInstruction,elseStackState, this.min_instr_for_if,actual_number_of_results, "return", funcType);
         elseInstruction = elseResult.body;
         elseStackState = elseResult.stackState;
         //Close the else instruction
@@ -505,7 +514,7 @@ class WasmGenerator {
       }
     }
 
-    getRandomCallInstruction(stackState,name) {
+    getRandomCallInstruction(funcIndex,stackState,name) {
       let callBody = "";
       let callInstructions = this.getPossibleInstructions(stackState,this.controlFlowInstructions.filter(instr => instr.name === name));
       let callInstruction = callInstructions[this.getRandomInt(0, callInstructions.length - 1)];
@@ -519,9 +528,12 @@ class WasmGenerator {
           stackState: stackState
         }
       }
+      //this.compiler_cg.add([`node${funcIndex}`, `node${calleeIndex}`]);
       if(callInstruction.name === "call"){
         stackState = this.updateStackState(stackState, callInstruction);
         callBody += callInstruction.toString() +"\n";
+        console.log("chiama: ", funcIndex + " -> chiamo: ", callInstruction.index)
+        this.compiler_cg.add([`node${funcIndex}`, `node${callInstruction.index}`]);
         return {
           body: callBody,
           stackState: stackState
@@ -530,6 +542,7 @@ class WasmGenerator {
         let constInstruction = this.instructions.filter((instr) => instr.name === `const`)[0];
         let index = callInstruction.getIstance().index;
         let type = callInstruction.getIstance().type;
+        console.log("call_IndirectInstruction: ", callInstruction);
 
         //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
         let result = this.handleConstInstruction(stackState, constInstruction, index);
@@ -537,6 +550,8 @@ class WasmGenerator {
         stackState = result.stackState;
         callBody += callInstruction.toString().concat(" (type " + type + ")\n");
         stackState = this.updateStackState(stackState, callInstruction);//Quando è call_indirect qui dentro consuma uno in più dei parametri richiesti, altrimenti si può fare +1 ai params quando creo le call_indirect all'inizio
+        console.log("chiama: ", funcIndex + " -> chiamo: ", index)
+        this.compiler_cg.add([`node${funcIndex}`, `node${index}`]);
         return {
           body: callBody,
           stackState: stackState
@@ -603,7 +618,7 @@ class WasmGenerator {
         }
     }
 
-    //TODO: spostare su Module.js come saveToFile
+    //TODO: spostare su Module.js come Wat
     /**
      * Generates dot data for a graph and writes it to dot file.
      * @param {string} graphName - The name of the graph.

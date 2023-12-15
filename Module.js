@@ -59,9 +59,12 @@ class Module {
       this.watCode += ")\n";
     }
   
-    saveToFile(fileName) {
+    saveToFileWat(fileName) {
       // Save the watCode to a .wat file
       fs.writeFileSync(`./output_files/${fileName}.wat`, this.watCode);
+    }
+    generateDotData(fileName){
+
     }
   
   }
