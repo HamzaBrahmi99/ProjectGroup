@@ -1,0 +1,12 @@
+digraph WatFile 
+{
+ node0 [label="node0"]; 
+node1 [label="node1"]; 
+node2 [label="node2" style = "filled" color="gray"] 
+node0 -> node1;
+node0 -> node0;
+node1 -> node0;
+node1 -> node1;
+node2 -> node1;
+node2 -> node0;
+}

@@ -29,9 +29,9 @@ class WasmGenerator {
         //Personalization of the generator
         this.allowed_types = ["i32"]; //array of allowed types
         this.max_number_of_functions = 5;  //max number of functions
-        this.max_number_of_params = 4;  //max number of params
+        this.max_number_of_params = 5;  //max number of params
         this.max_number_of_results = 2; //max number of results
-        this.min_number_of_instructions = 15; //min number of instructions for a function
+        this.min_number_of_instructions = 5; //min number of instructions for a function
         this.max_number_of_instructions = 30; //max number of instructions for a function (to avoid infinite loop)
         //Call instructions
         this.probability_of_call = 0.4; //prob to have a call/call_indirect
@@ -139,7 +139,6 @@ class WasmGenerator {
         let stackState = this.stack.getState();
         //Genero n_parmas locals
         let localsBody = this.generateLocals();
-        console.log("funcIndex: ", funcIndex)
         // Generate instructions for the function body
         let newBody = this.generateInstructions(funcIndex,body,stackState, this.min_number_of_instructions, funcType.results.length, null, funcType);
         body += localsBody;
@@ -532,7 +531,7 @@ class WasmGenerator {
       if(callInstruction.name === "call"){
         stackState = this.updateStackState(stackState, callInstruction);
         callBody += callInstruction.toString() +"\n";
-        console.log("chiama: ", funcIndex + " -> chiamo: ", callInstruction.index)
+        //console.log("chiama: ", funcIndex + " -> chiamo: ", callInstruction.index)
         this.compiler_cg.add([`node${funcIndex}`, `node${callInstruction.index}`]);
         return {
           body: callBody,
@@ -542,7 +541,6 @@ class WasmGenerator {
         let constInstruction = this.instructions.filter((instr) => instr.name === `const`)[0];
         let index = callInstruction.getIstance().index;
         let type = callInstruction.getIstance().type;
-        console.log("call_IndirectInstruction: ", callInstruction);
 
         //creo una instruzione const con l'indice della funzione da chiamare da caricare nello stack
         let result = this.handleConstInstruction(stackState, constInstruction, index);
@@ -550,7 +548,7 @@ class WasmGenerator {
         stackState = result.stackState;
         callBody += callInstruction.toString().concat(" (type " + type + ")\n");
         stackState = this.updateStackState(stackState, callInstruction);//Quando è call_indirect qui dentro consuma uno in più dei parametri richiesti, altrimenti si può fare +1 ai params quando creo le call_indirect all'inizio
-        console.log("chiama: ", funcIndex + " -> chiamo: ", index)
+        //console.log("chiama: ", funcIndex + " -> chiamo: ", index)
         this.compiler_cg.add([`node${funcIndex}`, `node${index}`]);
         return {
           body: callBody,
