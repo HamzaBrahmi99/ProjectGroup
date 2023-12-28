@@ -1,3 +1,6 @@
+/**
+ * Represents a stack data structure.
+ */
 class Stack {
     constructor() {
         this.stack = [];

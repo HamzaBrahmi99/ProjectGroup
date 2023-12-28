@@ -1,3 +1,7 @@
+/**
+ * Represents an instruction.
+ * @class
+ */
 class Instruction {
     constructor(name, type, consumes, produces) {
       this.name = name;

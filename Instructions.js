@@ -1,5 +1,8 @@
 const Instruction = require('./Instruction');
 
+/**
+ * Represents a collection of instructions.
+ */
 class Instructions {
   constructor() {
     this.instructions = [
@@ -31,10 +34,21 @@ class Instructions {
       new Instruction('ge_s', 'i32', 2, 1),
       new Instruction('ge_u', 'i32', 2, 1),
     ];
-}
+  }
+
+  /**
+   * Filters the instructions based on the provided callback function.
+   * @param {Function} callback - The callback function used to filter the instructions.
+   * @returns {Array} - The filtered instructions.
+   */
   filter(callback) {
     return this.instructions.filter(callback);
   }
+
+  /**
+   * Concatenates the provided instructions to the existing instructions.
+   * @param {Array} instructions - The instructions to be concatenated.
+   */
   concat(instructions) {
     this.instructions = this.instructions.concat(instructions);
   }

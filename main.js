@@ -1,4 +1,5 @@
 const WasmGenerator = require('./WasmGenerator');
-
 const wasmGenerator = new WasmGenerator();
-wasmGenerator.generateModule('example');
+
+const FILENAME = 'example';
+wasmGenerator.generateModule(FILENAME);

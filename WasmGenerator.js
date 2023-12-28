@@ -13,15 +13,14 @@ const MAX_NUMBER_OF_FUNCTIONS = 80;
 const MAX_NUMBER_OF_PARAMS = 10;
 const MAX_NUMBER_OF_RESULTS = 5;
 const MIN_NUMBER_OF_INSTRUCTIONS = 10;
-const MAX_NUMBER_OF_INSTRUCTIONS = 50;
+const MAX_NUMBER_OF_INSTRUCTIONS = 80;
 // Config of the probabilities of having those instructions
 const PROBABILITY_OF_CALL = 0.9;
 const PROBABILITY_OF_CALL_INDIRECT = 0.9;
 const PROBABILITY_OF_IF = 0.9;
 const PROBABILITY_OF_LOOP = 0.9;
 // Config of the if instructions
-const MAX_NESTED_IFS = 2;
-const MIN_INSTR_FOR_IF = 5;
+const MAX_NESTED_IFS = 1;
 // Config of the loop instructions
 const MAX_NESTED_LOOPS = 2;
 const MAX_NUMBER_OF_LOOP_INSTRUCTIONS = 10;
@@ -89,11 +88,54 @@ class WasmGenerator {
       this.returnExit = false;
     }
     /**
+     * Checks the correctness of the constants by the user.
+     * @throws {Error} If any of the constants are not within the specified range.
+     */
+    checkCorrectnessOfConstants(){
+      if(this.max_number_of_functions <= 0){
+        throw new Error("max_number_of_functions must be greater than 0");
+      }
+      if(this.max_number_of_params < 0){
+        throw new Error("max_number_of_params must be at least 0");
+      }
+      if(this.max_number_of_results < 0){
+        throw new Error("max_number_of_results must be at least 0");
+      }
+      if(this.min_number_of_instructions < 0){
+        throw new Error("min_number_of_instructions must be at least 0");
+      }
+      if(this.max_number_of_instructions < 0){
+        throw new Error("max_number_of_instructions must be at least 0");
+      }
+      if(this.probability_of_call < 0 || this.probability_of_call > 1){
+        throw new Error("probability_of_call must be between 0 and 1");
+      }
+      if(this.probability_of_call_indirect < 0 || this.probability_of_call_indirect > 1){
+        throw new Error("probability_of_call_indirect must be between 0 and 1");
+      }
+      if(this.probability_of_if < 0 || this.probability_of_if > 1){
+        throw new Error("probability_of_if must be between 0 and 1");
+      }
+      if(this.probability_of_loop < 0 || this.probability_of_loop > 1){
+        throw new Error("probability_of_loop must be between 0 and 1");
+      }
+      if(this.maxNestedIfs < 0){
+        throw new Error("maxNestedIfs must be at least 0");
+      }
+      if(this.maxNestedLoops < 0){
+        throw new Error("maxNestedLoops must be at least 0");
+      }
+      if(this.max_number_of_loop_instructions < 0){
+        throw new Error("max_number_of_loop_instructions must be at least 0");
+      }
+   }
+    /**
      * Generates a WebAssembly module with random function types, function table, start export, function bodies, and saves it to a .wat file.
      * @param {string} wat_name - The name of the .wat file to save the generated module to.
      */
     generateModule(wat_name) {
       this.reset();
+      this.checkCorrectnessOfConstants();
       this.generateFunctionTypes();
       this.assignRandomFunctionTypeToEachFunction();
       this.module.generateFunctionTable(this.max_number_of_functions);
@@ -242,12 +284,13 @@ class WasmGenerator {
      * @returns {Object} - An object containing the generated body and updated stack state.
      */
     generateInstructions(instructions, funcIndex, stackState, funcType){
-      //TODO: COMMENT THIS
       let body = '';
       let instructionCount = 0;
       this.isLastInstruction = false;
+      // Generate instructions until the minimum number of instructions is reached or a return instruction is encountered
       while (instructionCount < this.min_number_of_instructions && !this.returnExit) {
         if(instructionCount > this.max_number_of_instructions || this.isLastInstruction){
+          // Correct the stack state to match the function type and add the corresponding instructions to the body
           let correctedStackState = this.ensureCorrectStackState(stackState, instructions, funcType, funcIndex);
           body += correctedStackState.body;
           stackState = correctedStackState.stackState;
@@ -256,14 +299,19 @@ class WasmGenerator {
             stackState: stackState
           }
         }
+        // Increment the instruction count
         instructionCount++;
+        // Generate a single instruction based on the current stack state and function type
         let instructionGenerated = this.generateSingleInstruction(stackState, instructions, funcType, funcIndex);
+        // Add the generated instruction to the body and update the stack state
         body += instructionGenerated.body;
         stackState = instructionGenerated.stackState;
         this.stack.setState(stackState);
       }
+      // Generate instructions until the stack state matches the function results or a return instruction is encountered
       while (stackState.length !== funcType.results.length && !this.returnExit) {
         if(instructionCount > this.max_number_of_instructions || this.isLastInstruction){
+          // Correct the stack state to match the function type and add the corresponding instructions to the body
           let correctedStackState = this.ensureCorrectStackState(stackState, instructions, funcType, funcIndex);
           body += correctedStackState.body;
           stackState = correctedStackState.stackState;
@@ -272,12 +320,16 @@ class WasmGenerator {
             stackState: stackState
           }
         }
+        // Increment the instruction count
         instructionCount++;
+        // Generate a single instruction based on the current stack state and function type
         let instructionGenerated = this.generateSingleInstruction(stackState, instructions, funcType, funcIndex);
+        // Add the generated instruction to the body and update the stack state
         body += instructionGenerated.body;
         stackState = instructionGenerated.stackState;
         this.stack.setState(stackState);
       }
+      // If a return instruction was encountered, it still generates correct intructions but they can be ignored because they are after the return
       if(this.returnExit){
         let correctedStackState = this.ensureCorrectStackState(stackState, instructions, funcType, funcIndex);
         body += ';;ignore the instructions after the return\n';
@@ -288,6 +340,7 @@ class WasmGenerator {
           stackState: stackState
         }
       }
+      // Return the generated body and updated stack state
       return {
         body: body,
         stackState: stackState
@@ -649,8 +702,11 @@ class WasmGenerator {
       // Increase the nested if counter
       this.nestedIfCounter++;
       // Checks if the max number of nested ifs has been reached, if so, remove the if instruction from the instructions
-      if (this.nestedIfCounter > this.maxNestedIfs)
-        instructions = instructions.filter(instr => instr.name !== "if");//TODO: cambiare perchè mi toglie l'if proprio e ne fa uno solo
+      if (this.nestedIfCounter > this.maxNestedIfs){
+        // Remove the if instruction from the instructions by setting its consumes to -1 so it can't be used
+        let ifInstruction = instructions.filter(instr => instr.name == "if")[0];
+        ifInstruction.consumes = 1000;
+      }
       // Generate the then and else bodies and update the stack states and the bodies
       let thenResult = this.generateInstructions(instructions, funcIndex, thenStackState, mock_funcType);
       let elseResult = this.generateInstructions(instructions, funcIndex, elseStackState, mock_funcType);
@@ -667,6 +723,9 @@ class WasmGenerator {
       body += "(else\n" + elseBody + ")\n";
       // Close the if body
       body += ")\n";
+      // Make the if instruction consume one value so it can be used again
+      let ifInstruction = instructions.filter(instr => instr.name == "if")[0];
+      ifInstruction.consumes = 1;
       // Return the updated body and stack state
       return {
         body: body,
@@ -703,8 +762,11 @@ class WasmGenerator {
       body = "(loop $loop" + loop_name + "\n";
       this.nestedLoopCounter++;
       // Limit the number of nested loops
-      if(this.nestedLoopCounter > this.maxNestedLoops)
-        instructions = instructions.filter(instr => instr.name !== "loop");//TODO: cambiare perchè mi toglie il loop proprio e ne fa uno solo
+      if(this.nestedLoopCounter > this.maxNestedLoops){
+        // Remove the loop instruction from the instructions by setting its consumes to -1 so it can't be used
+        let loopInstruction = instructions.filter(instr => instr.name == "loop")[0];
+        loopInstruction.consumes = 10000;
+      }
       // Generate the loop body
       let loopResult = this.generateInstructions(instructions, funcIndex, loopStackState, mock_funcType);
       body += loopResult.body;
@@ -717,6 +779,9 @@ class WasmGenerator {
       body += "br_if $loop"+ loop_name+"\n";
       // Close the loop body
       body += ")\n";
+      // Make the loop instruction consume no value so it can be used again
+      let loopInstruction = instructions.filter(instr => instr.name == "loop")[0];
+      loopInstruction.consumes = 0;
       // Return the updated body and stack state
       return {
         body: body,
