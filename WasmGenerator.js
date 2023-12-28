@@ -9,21 +9,27 @@ const Module = require('./Module');
 // Personalization of the logic of the generator
 // Config of the function generator
 const ALLOWED_TYPES = ["i32"];
-const MAX_NUMBER_OF_FUNCTIONS = 80;
-const MAX_NUMBER_OF_PARAMS = 10;
-const MAX_NUMBER_OF_RESULTS = 5;
+const MAX_NUMBER_OF_FUNCTIONS = 10;
+const MAX_NUMBER_OF_PARAMS = 5;
+const MAX_NUMBER_OF_RESULTS = 2;
+
+// Min and max number of instructions to generate every time
 const MIN_NUMBER_OF_INSTRUCTIONS = 10;
 const MAX_NUMBER_OF_INSTRUCTIONS = 80;
+
 // Config of the probabilities of having those instructions
-const PROBABILITY_OF_CALL = 0.9;
-const PROBABILITY_OF_CALL_INDIRECT = 0.9;
-const PROBABILITY_OF_IF = 0.9;
-const PROBABILITY_OF_LOOP = 0.9;
+const PROBABILITY_OF_CALL = 0.9; // The probability of a "call" instruction being included in a function.
+const PROBABILITY_OF_CALL_INDIRECT = 0.9; // The probability of a "call_indirect" instruction being included in a function.
+const PROBABILITY_OF_IF = 0.9; // The probability of an "if" instruction being included in a function.
+const PROBABILITY_OF_LOOP = 0.9; // The probability of a "loop" instruction being included in a function.
+
 // Config of the if instructions
 const MAX_NESTED_IFS = 1;
+
 // Config of the loop instructions
-const MAX_NESTED_LOOPS = 2;
-const MAX_NUMBER_OF_LOOP_INSTRUCTIONS = 10;
+const MAX_NESTED_LOOPS = 1;
+const MAX_LOOP_ITERATIONS  = 10;
+
 
 /**
  * Represents a WebAssembly Text generator.
@@ -59,7 +65,7 @@ class WasmGenerator {
       // Loop instructions
       this.probability_of_loop = PROBABILITY_OF_LOOP;
       this.maxNestedLoops = MAX_NESTED_LOOPS;
-      this.max_number_of_loop_instructions = MAX_NUMBER_OF_LOOP_INSTRUCTIONS;
+      this.max_loop_iterations = MAX_LOOP_ITERATIONS;
       // Inizialization of the generator variables
       this.nestedLoopCounter = 0;
       this.isLastInstruction = false;
@@ -125,8 +131,8 @@ class WasmGenerator {
       if(this.maxNestedLoops < 0){
         throw new Error("maxNestedLoops must be at least 0");
       }
-      if(this.max_number_of_loop_instructions < 0){
-        throw new Error("max_number_of_loop_instructions must be at least 0");
+      if(this.max_loop_iterations < 0){
+        throw new Error("max_loop_iterations must be at least 0");
       }
    }
     /**
@@ -771,7 +777,7 @@ class WasmGenerator {
       let loopResult = this.generateInstructions(instructions, funcIndex, loopStackState, mock_funcType);
       body += loopResult.body;
       // Generate the loop counter increment and loop condition
-      let number_of_loops = this.getRandomInt(1,this.max_number_of_loop_instructions);
+      let number_of_loops = this.getRandomInt(1,this.max_loop_iterations);
       body += `local.get $${local.name}\ni32.const 1\ni32.add\nlocal.set $${local.name}\n`;
       body += "local.get $" + local.name + "\n";
       body += "i32.const " + number_of_loops + "\n";
