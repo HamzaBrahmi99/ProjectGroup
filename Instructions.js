@@ -35,5 +35,8 @@ class Instructions {
   filter(callback) {
     return this.instructions.filter(callback);
   }
+  concat(instructions) {
+    this.instructions = this.instructions.concat(instructions);
+  }
 }
 module.exports = Instructions;
