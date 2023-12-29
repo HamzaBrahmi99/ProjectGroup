@@ -5,21 +5,21 @@ const ControlFlowInstructions = require('./ControlFlowInstructions');
 const GraphManager = require('./GraphManager');
 const Stack = require('./Stack');
 const Module = require('./Module');
-//TODO: i nested non si resettano, modificare nome counter loop
+
 // Personalization of the logic of the generator
 // Config of the function generator
 const ALLOWED_TYPES = ["i32"];
-const MAX_NUMBER_OF_FUNCTIONS = 2;
-const MAX_NUMBER_OF_PARAMS = 5;
-const MAX_NUMBER_OF_RESULTS = 2;
+const MAX_NUMBER_OF_FUNCTIONS_TO_GENERATE = 2;
+const MAX_NUMBER_OF_PARAMS_FOR_A_FUNCTION = 5;
+const MAX_NUMBER_OF_RESULTS_FOR_A_FUNCTION = 2;
 // Min and max number of instructions to generate every time
 const MIN_NUMBER_OF_INSTRUCTIONS = 10;
-const MAX_NUMBER_OF_INSTRUCTIONS = 30;
-// Config of the probabilities of having those instructions
-const PROBABILITY_OF_CALL = 0; // The probability of a "call" instruction being included in a function.
-const PROBABILITY_OF_CALL_INDIRECT = 0; // The probability of a "call_indirect" instruction being included in a function.
-const PROBABILITY_OF_IF = 0.9; // The probability of an "if" instruction being included in a function.
-const PROBABILITY_OF_LOOP = 0.9; // The probability of a "loop" instruction being included in a function.
+const MAX_NUMBER_OF_INSTRUCTIONS = 50;
+// Config of the probabilities of having those instructions to being included in a function
+const PROBABILITY_OF_CALL = 0;
+const PROBABILITY_OF_CALL_INDIRECT = 0;
+const PROBABILITY_OF_IF = 0.9;
+const PROBABILITY_OF_LOOP = 0.9;
 // Config of the if instructions
 const MAX_NESTED_IFS = 1;
 // Config of the loop instructions
@@ -45,9 +45,9 @@ class WasmGenerator {
       this.functionTypesByIndex = [];
       // Personalization of the generator
       this.allowed_types = ALLOWED_TYPES;
-      this.max_number_of_functions = MAX_NUMBER_OF_FUNCTIONS;
-      this.max_number_of_params = MAX_NUMBER_OF_PARAMS;
-      this.max_number_of_results = MAX_NUMBER_OF_RESULTS;
+      this.max_number_of_functions = MAX_NUMBER_OF_FUNCTIONS_TO_GENERATE;
+      this.max_number_of_params = MAX_NUMBER_OF_PARAMS_FOR_A_FUNCTION;
+      this.max_number_of_results = MAX_NUMBER_OF_RESULTS_FOR_A_FUNCTION;
       this.min_number_of_instructions = MIN_NUMBER_OF_INSTRUCTIONS;
       this.max_number_of_instructions = MAX_NUMBER_OF_INSTRUCTIONS;
       // Call instructions
