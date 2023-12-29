@@ -5,27 +5,23 @@ const ControlFlowInstructions = require('./ControlFlowInstructions');
 const GraphManager = require('./GraphManager');
 const Stack = require('./Stack');
 const Module = require('./Module');
-
+//TODO: i nested non si resettano, modificare nome counter loop
 // Personalization of the logic of the generator
 // Config of the function generator
 const ALLOWED_TYPES = ["i32"];
-const MAX_NUMBER_OF_FUNCTIONS = 10;
+const MAX_NUMBER_OF_FUNCTIONS = 2;
 const MAX_NUMBER_OF_PARAMS = 5;
 const MAX_NUMBER_OF_RESULTS = 2;
-
 // Min and max number of instructions to generate every time
 const MIN_NUMBER_OF_INSTRUCTIONS = 10;
-const MAX_NUMBER_OF_INSTRUCTIONS = 80;
-
+const MAX_NUMBER_OF_INSTRUCTIONS = 30;
 // Config of the probabilities of having those instructions
-const PROBABILITY_OF_CALL = 0.9; // The probability of a "call" instruction being included in a function.
-const PROBABILITY_OF_CALL_INDIRECT = 0.9; // The probability of a "call_indirect" instruction being included in a function.
+const PROBABILITY_OF_CALL = 0; // The probability of a "call" instruction being included in a function.
+const PROBABILITY_OF_CALL_INDIRECT = 0; // The probability of a "call_indirect" instruction being included in a function.
 const PROBABILITY_OF_IF = 0.9; // The probability of an "if" instruction being included in a function.
 const PROBABILITY_OF_LOOP = 0.9; // The probability of a "loop" instruction being included in a function.
-
 // Config of the if instructions
 const MAX_NESTED_IFS = 1;
-
 // Config of the loop instructions
 const MAX_NESTED_LOOPS = 1;
 const MAX_LOOP_ITERATIONS  = 10;
@@ -152,7 +148,6 @@ class WasmGenerator {
       this.module.saveToFileWat(wat_name);
       this.generateDotData(wat_name);
     }
-
     /**
      * Generates function types with random parameters and results.
      */
@@ -227,6 +222,8 @@ class WasmGenerator {
           // Reset the locals and the local name counter for the current function
           this.locals = [];
           this.localNameCounter = 0;
+          this.nestedLoopCounter = 0;
+          this.nestedIfCounter = 0;
           // Reset the return instruction exit flag for the current function
           this.returnExit = false;
           // Generate the body of the current function
@@ -277,6 +274,7 @@ class WasmGenerator {
       // Reset the locals and the local name counter
       this.locals = [];
       this.localNameCounter = 0;
+      this.nestedLoopCounter = 0;
       return body;
     }
 
@@ -701,7 +699,6 @@ class WasmGenerator {
       }
       // Create a mock function type with the same parameters but with the new number of results
       let mock_funcType = { params: funcType.params, results: results };
-
       // Generate the bodies for the then and else branches
       let thenBody = "";
       let elseBody = "";
@@ -729,6 +726,7 @@ class WasmGenerator {
       body += "(else\n" + elseBody + ")\n";
       // Close the if body
       body += ")\n";
+      this.nestedIfCounter--;
       // Make the if instruction consume one value so it can be used again
       let ifInstruction = instructions.filter(instr => instr.name == "if")[0];
       ifInstruction.consumes = 1;
@@ -751,10 +749,17 @@ class WasmGenerator {
     handleLoopInstruction( stackState, instruction, funcType, funcIndex, instructions) {
       // Initialize a local variable counter
       let local = {};
-      local.name = "loopCounter"+this.nestedLoopCounter;
-      local.type = "i32";
-      this.locals.push(local);
-      this.localNameCounter++;
+      let loop_name = this.nestedLoopCounter;
+      if(this.locals.some(local => local.name === "loopCounter"+this.nestedLoopCounter)){
+        // If a local variable named loopCounter0 already exists, use it
+        local = this.locals.filter(local => local.name === "loopCounter"+this.nestedLoopCounter)[0];
+      } else {
+        // If it doesn't, create a new local for this nested loop level
+        local.name = "loopCounter" + this.nestedLoopCounter;
+        local.type = "i32";
+        this.locals.push(local);
+        this.localNameCounter++;
+      }
       // Initialize the local variable counter at 0
       let body = "(local.set $" + local.name + " (i32.const 0))\n";
       // Create a new stack state for the loop
@@ -764,7 +769,6 @@ class WasmGenerator {
       let results = [];
       let mock_funcType = {params: funcType.params, results: results};
       // Generate the loop instruction
-      let loop_name = this.nestedLoopCounter;
       body = "(loop $loop" + loop_name + "\n";
       this.nestedLoopCounter++;
       // Limit the number of nested loops
@@ -785,6 +789,7 @@ class WasmGenerator {
       body += "br_if $loop"+ loop_name+"\n";
       // Close the loop body
       body += ")\n";
+      this.nestedLoopCounter--;
       // Make the loop instruction consume no value so it can be used again
       let loopInstruction = instructions.filter(instr => instr.name == "loop")[0];
       loopInstruction.consumes = 0;
