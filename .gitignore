@@ -1,2 +1,4 @@
 # Ignore content of the output_files directory
 output_files/*
+node_modules/*
+```

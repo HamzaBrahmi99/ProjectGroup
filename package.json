@@ -4,7 +4,7 @@
   "description": "Repo per il project group",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/HamzaBrahmi99/ProjectGroup/issues"
   },
-  "homepage": "https://github.com/HamzaBrahmi99/ProjectGroup#readme"
+  "homepage": "https://github.com/HamzaBrahmi99/ProjectGroup#readme",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
 }

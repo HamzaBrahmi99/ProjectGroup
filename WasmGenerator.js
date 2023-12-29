@@ -26,7 +26,6 @@ const MAX_NESTED_IFS = 1;
 const MAX_NESTED_LOOPS = 1;
 const MAX_LOOP_ITERATIONS  = 10;
 
-
 /**
  * Represents a WebAssembly Text generator.
  * @constructor
