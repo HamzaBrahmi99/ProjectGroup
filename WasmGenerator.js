@@ -9,21 +9,21 @@ const Module = require('./Module');
 // Personalization of the logic of the generator
 // Config of the function generator
 const ALLOWED_TYPES = ["i32"];
-const MAX_NUMBER_OF_FUNCTIONS_TO_GENERATE = 2;
+const MAX_NUMBER_OF_FUNCTIONS_TO_GENERATE = 5;
 const MAX_NUMBER_OF_PARAMS_FOR_A_FUNCTION = 5;
 const MAX_NUMBER_OF_RESULTS_FOR_A_FUNCTION = 2;
 // Min and max number of instructions to generate every time
 const MIN_NUMBER_OF_INSTRUCTIONS = 10;
 const MAX_NUMBER_OF_INSTRUCTIONS = 50;
 // Config of the probabilities of having those instructions to being included in a function
-const PROBABILITY_OF_CALL = 0;
-const PROBABILITY_OF_CALL_INDIRECT = 0;
-const PROBABILITY_OF_IF = 0.9;
-const PROBABILITY_OF_LOOP = 0.9;
+const PROBABILITY_OF_CALL = 1;
+const PROBABILITY_OF_CALL_INDIRECT = 1;
+const PROBABILITY_OF_IF = 0.5;
+const PROBABILITY_OF_LOOP = 0.4;
 // Config of the if instructions
 const MAX_NESTED_IFS = 1;
 // Config of the loop instructions
-const MAX_NESTED_LOOPS = 1;
+const MAX_NESTED_LOOPS = 0;
 const MAX_LOOP_ITERATIONS  = 10;
 
 /**
