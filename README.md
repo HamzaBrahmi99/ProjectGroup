@@ -2,6 +2,7 @@
 
 This project is a JavaScript application that generates random functions in WebAssembly Text (WAT) format. It also generates a .dot file with the graph of the calls.
 
+The whole research and use case can be found in [this report](https://drive.google.com/file/d/1Dkf-D4PycbZXo938LZ05l6KEajvHV4J5/view?usp=sharing) in Italian language only.
 ## Features
 
 - Generates random functions in WAT format.
